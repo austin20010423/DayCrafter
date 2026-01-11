@@ -18,6 +18,37 @@ class Sidebar extends StatelessWidget {
   final VoidCallback? onAddProject;
   const Sidebar({super.key, this.onAddProject});
 
+  void _showDeleteDialog(
+    BuildContext context,
+    DayCrafterProvider provider,
+    String projectId,
+    String projectName,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Project'),
+        content: Text(
+          'Are you sure you want to delete "$projectName"? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.deleteProject(projectId);
+              Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DayCrafterProvider>();
@@ -148,12 +179,17 @@ class Sidebar extends StatelessWidget {
                 final isActive = project.id == activeProjectId;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: _SidebarItem(
+                  child: _ProjectItem(
                     label: project.name,
-                    icon: LucideIcons.folder,
                     isActive: isActive,
-                    onTap: () => provider.setActiveProject(project.id),
                     markColor: _parseHexColor(project.colorHex),
+                    onTap: () => provider.setActiveProject(project.id),
+                    onDelete: () => _showDeleteDialog(
+                      context,
+                      provider,
+                      project.id,
+                      project.name,
+                    ),
                   ),
                 );
               },
@@ -226,14 +262,12 @@ class _SidebarItem extends StatelessWidget {
   final IconData icon;
   final bool isActive;
   final VoidCallback onTap;
-  final Color? markColor;
 
   const _SidebarItem({
     required this.label,
     required this.icon,
     required this.isActive,
     required this.onTap,
-    this.markColor,
   });
 
   @override
@@ -257,17 +291,6 @@ class _SidebarItem extends StatelessWidget {
               color: isActive ? Colors.white : AppStyles.mTextSecondary,
             ),
             const SizedBox(width: 16),
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? Colors.white
-                      : (markColor ?? AppStyles.mTextSecondary),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
             Expanded(
               child: Text(
                 label,
@@ -288,6 +311,107 @@ class _SidebarItem extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectItem extends StatefulWidget {
+  final String label;
+  final bool isActive;
+  final Color? markColor;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _ProjectItem({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+    required this.onDelete,
+    this.markColor,
+  });
+
+  @override
+  State<_ProjectItem> createState() => _ProjectItemState();
+}
+
+class _ProjectItemState extends State<_ProjectItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: AppStyles.bRadiusMedium,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: widget.isActive
+                ? AppStyles.mPrimary.withValues(alpha: 0.3)
+                : (_isHovered
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.transparent),
+            borderRadius: AppStyles.bRadiusMedium,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                LucideIcons.folder,
+                size: 20,
+                color: widget.isActive
+                    ? Colors.white
+                    : AppStyles.mTextSecondary,
+              ),
+              const SizedBox(width: 16),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: widget.isActive
+                      ? Colors.white
+                      : (widget.markColor ?? AppStyles.mTextSecondary),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: widget.isActive
+                        ? Colors.white
+                        : AppStyles.mTextSecondary,
+                    fontSize: 15,
+                    fontWeight: widget.isActive
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // Delete button - visible on hover or when active
+              if (_isHovered || widget.isActive)
+                IconButton(
+                  onPressed: widget.onDelete,
+                  icon: Icon(
+                    LucideIcons.trash2,
+                    size: 16,
+                    color: _isHovered ? Colors.red.shade300 : Colors.white54,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
+                  splashRadius: 16,
+                  tooltip: 'Delete project',
+                ),
+            ],
+          ),
         ),
       ),
     );

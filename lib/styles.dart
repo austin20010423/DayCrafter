@@ -11,6 +11,27 @@ class AppStyles {
   static const Color mTextSecondary = Color(0xFF8E979F); // Muted Slate
   static const Color mSidebarBg = Color(0xFF4A555C); // Deep Muted Slate
 
+  // Priority Colors (higher priority = brighter)
+  static const Color priorityHigh = Color(0xFFFF6B6B); // Bright Coral
+  static const Color priorityMedium = Color(0xFFFFA94D); // Bright Orange
+  static const Color priorityLow = Color(0xFFC5CCD3); // Muted Gray
+
+  /// Returns background color based on priority level
+  /// Priority 1 = High (brightest), 2 = Medium, 3+ = Low (muted)
+  static Color getPriorityColor(dynamic priority) {
+    final int p = priority is int
+        ? priority
+        : int.tryParse(priority?.toString() ?? '3') ?? 3;
+    switch (p) {
+      case 1:
+        return priorityHigh;
+      case 2:
+        return priorityMedium;
+      default:
+        return priorityLow;
+    }
+  }
+
   // Corner Radii
   static const double radiusSmall = 12.0;
   static const double radiusMedium = 20.0;

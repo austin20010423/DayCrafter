@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'provider.dart';
 import 'styles.dart';
 import 'widgets/name_entry.dart';
@@ -13,8 +14,11 @@ import 'widgets/project_modal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 //delete above line when not needed
 
-void main() async{
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables from .env file
+  await dotenv.load(fileName: ".env");
 
   //start wipe code
   final prefs = await SharedPreferences.getInstance();

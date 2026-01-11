@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../models.dart';
@@ -22,6 +23,10 @@ class _ChatViewState extends State<ChatView> {
   String? _attachedFile;
   int _timerSeconds = 0;
   Timer? _timer;
+
+  // Sidebar state
+  bool _isSidebarOpen = false;
+  List<Map<String, dynamic>>? _sidebarTasks;
 
   @override
   void initState() {
@@ -118,6 +123,16 @@ class _ChatViewState extends State<ChatView> {
           painter: GridDotPainter(dotColor: AppStyles.mTextSecondary),
         ),
         _buildContent(project, userName, isInitialState, provider.isLoading),
+        // Sidebar overlay
+        if (_isSidebarOpen) ...[
+          // Dark overlay to dim background
+          GestureDetector(
+            onTap: () => setState(() => _isSidebarOpen = false),
+            child: Container(color: Colors.black.withValues(alpha: 0.3)),
+          ),
+          // Sidebar
+          _buildTaskSidebar(),
+        ],
       ],
     );
   }
@@ -391,14 +406,61 @@ class _ChatViewState extends State<ChatView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    msg.text,
-                    style: TextStyle(
-                      color: isUser ? Colors.white : AppStyles.mTextPrimary,
-                      fontSize: 15,
-                      height: 1.6,
+                  // Use markdown for AI responses, plain text for user messages
+                  if (isUser)
+                    Text(
+                      msg.text,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        height: 1.6,
+                      ),
+                    )
+                  else
+                    MarkdownBody(
+                      data: msg.text,
+                      styleSheet: MarkdownStyleSheet(
+                        p: TextStyle(
+                          color: AppStyles.mTextPrimary,
+                          fontSize: 15,
+                          height: 1.6,
+                        ),
+                        h1: TextStyle(
+                          color: AppStyles.mTextPrimary,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        h2: TextStyle(
+                          color: AppStyles.mTextPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        h3: TextStyle(
+                          color: AppStyles.mTextPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        strong: TextStyle(
+                          color: AppStyles.mTextPrimary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        em: TextStyle(
+                          color: AppStyles.mTextPrimary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        code: TextStyle(
+                          backgroundColor: AppStyles.mBackground,
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                        ),
+                        codeblockDecoration: BoxDecoration(
+                          color: AppStyles.mBackground,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        listBullet: TextStyle(color: AppStyles.mTextPrimary),
+                      ),
+                      selectable: true,
                     ),
-                  ),
                   if (msg.tasks != null && msg.tasks!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     _buildTaskCards(msg.tasks!),
@@ -413,86 +475,242 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Widget _buildTaskCards(List<Map<String, dynamic>> tasks) {
-    return SizedBox(
-      height: 200, // Fixed height for cards
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: tasks.length,
-        itemBuilder: (context, index) {
-          final task = tasks[index];
-          return Container(
-            width: 300,
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppStyles.mBackground,
-              borderRadius: AppStyles.bRadiusMedium,
-              border: Border.all(color: AppStyles.mSurface, width: 1),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task['task'] ?? '',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppStyles.mTextPrimary,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 2-column grid layout
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: tasks.map((task) {
+            final priorityColor = AppStyles.getPriorityColor(task['priority']);
+
+            return Container(
+              width: 200,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: priorityColor.withValues(alpha: 0.15),
+                borderRadius: AppStyles.bRadiusMedium,
+                border: Border.all(
+                  color: priorityColor.withValues(alpha: 0.4),
+                  width: 2,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Due: ${task['DueDate'] ?? ''}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppStyles.mTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Priority: ${task['priority'] ?? ''}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppStyles.mTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Time: ${task['TimeToComplete'] ?? ''}h',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppStyles.mTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: Text(
-                    task['Description'] ?? '',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppStyles.mTextPrimary,
-                      height: 1.4,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 4,
-                  ),
-                ),
-                if (task['links'] != null && task['links'].isNotEmpty) ...[
-                  const SizedBox(height: 8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Task name
                   Text(
-                    'Links: ${task['links']}',
-                    style: TextStyle(fontSize: 10, color: AppStyles.mPrimary),
-                    maxLines: 1,
+                    task['task'] ?? '',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppStyles.mTextPrimary,
+                    ),
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // Due Date
+                  _buildInfoRow('Due', task['DueDate'] ?? '-'),
+                  const SizedBox(height: 4),
+                  // Start Date
+                  _buildInfoRow('Start', task['dateOnCalendar'] ?? '-'),
+                  const SizedBox(height: 4),
+                  // Priority with colored badge
+                  Row(
+                    children: [
+                      Text(
+                        'Priority: ',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppStyles.mTextSecondary,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: priorityColor,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _getPriorityLabel(task['priority']),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        // Click here to edit button
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _sidebarTasks = tasks;
+              _isSidebarOpen = true;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppStyles.mPrimary.withValues(alpha: 0.1),
+              borderRadius: AppStyles.bRadiusMedium,
+              border: Border.all(
+                color: AppStyles.mPrimary.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.edit3, size: 16, color: AppStyles.mPrimary),
+                const SizedBox(width: 8),
+                Text(
+                  'Click here to edit',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppStyles.mPrimary,
+                  ),
+                ),
               ],
             ),
-          );
-        },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(fontSize: 11, color: AppStyles.mTextSecondary),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(fontSize: 11, color: AppStyles.mTextPrimary),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getPriorityLabel(dynamic priority) {
+    final int p = priority is int
+        ? priority
+        : int.tryParse(priority?.toString() ?? '3') ?? 3;
+    switch (p) {
+      case 1:
+        return 'High';
+      case 2:
+        return 'Medium';
+      default:
+        return 'Low';
+    }
+  }
+
+  Widget _buildTaskSidebar() {
+    final tasks = _sidebarTasks ?? [];
+
+    // Sort tasks by priority (1 = highest priority first)
+    final sortedTasks = List<Map<String, dynamic>>.from(tasks)
+      ..sort((a, b) {
+        final pA = a['priority'] is int
+            ? a['priority']
+            : int.tryParse(a['priority']?.toString() ?? '3') ?? 3;
+        final pB = b['priority'] is int
+            ? b['priority']
+            : int.tryParse(b['priority']?.toString() ?? '3') ?? 3;
+        return pA.compareTo(pB);
+      });
+
+    return Positioned(
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: MediaQuery.of(context).size.width * 0.5,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppStyles.mSurface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(-5, 0),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: AppStyles.mPrimary),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.listTodo, color: Colors.white, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Task Details',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => setState(() => _isSidebarOpen = false),
+                    icon: Icon(LucideIcons.x, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            // Task list
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: sortedTasks.length,
+                itemBuilder: (context, index) {
+                  final task = sortedTasks[index];
+                  return _buildDetailedTaskCard(task);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildDetailedTaskCard(Map<String, dynamic> task) {
+    final priorityColor = AppStyles.getPriorityColor(task['priority']);
+    final hasDetails =
+        (task['Description'] != null &&
+            task['Description'].toString().isNotEmpty) ||
+        (task['links'] != null && task['links'].toString().isNotEmpty);
+
+    return _ExpandableTaskCard(
+      task: task,
+      priorityColor: priorityColor,
+      priorityLabel: _getPriorityLabel(task['priority']),
+      hasDetails: hasDetails,
     );
   }
 
@@ -584,6 +802,8 @@ class _ChatViewState extends State<ChatView> {
             style: TextStyle(fontSize: 18, color: AppStyles.mTextPrimary),
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => _handleSubmit(),
+            onChanged: (_) =>
+                setState(() {}), // Update button state on text change
             decoration: InputDecoration(
               hintText: 'Type a meeting note...',
               hintStyle: TextStyle(
@@ -884,6 +1104,213 @@ class _BouncingDotsState extends State<_BouncingDots>
           }),
         );
       },
+    );
+  }
+}
+
+/// Expandable task card widget with dropdown for description and links
+class _ExpandableTaskCard extends StatefulWidget {
+  final Map<String, dynamic> task;
+  final Color priorityColor;
+  final String priorityLabel;
+  final bool hasDetails;
+
+  const _ExpandableTaskCard({
+    required this.task,
+    required this.priorityColor,
+    required this.priorityLabel,
+    required this.hasDetails,
+  });
+
+  @override
+  State<_ExpandableTaskCard> createState() => _ExpandableTaskCardState();
+}
+
+class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
+  bool _isExpanded = false;
+
+  Widget _buildDetailItem(IconData icon, String label, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: AppStyles.mTextSecondary),
+        const SizedBox(width: 6),
+        Text(
+          '$label: ',
+          style: TextStyle(fontSize: 12, color: AppStyles.mTextSecondary),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: AppStyles.mTextPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: AppStyles.bRadiusMedium,
+        border: Border(left: BorderSide(color: widget.priorityColor, width: 4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Task name and priority badge
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.task['task'] ?? '',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppStyles.mTextPrimary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.priorityColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  widget.priorityLabel,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Dates row
+          Row(
+            children: [
+              _buildDetailItem(
+                LucideIcons.calendar,
+                'Due',
+                widget.task['DueDate'] ?? '-',
+              ),
+              const SizedBox(width: 20),
+              _buildDetailItem(
+                LucideIcons.play,
+                'Start',
+                widget.task['dateOnCalendar'] ?? '-',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Time to complete
+          _buildDetailItem(
+            LucideIcons.clock,
+            'Time',
+            '${widget.task['TimeToComplete'] ?? '-'} Days',
+          ),
+          // Dropdown button for details (only if has description or links)
+          if (widget.hasDetails) ...[
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: () => setState(() => _isExpanded = !_isExpanded),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppStyles.mBackground,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isExpanded
+                          ? LucideIcons.chevronUp
+                          : LucideIcons.chevronDown,
+                      size: 16,
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _isExpanded ? 'Hide details' : 'Show details',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppStyles.mTextSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          // Expandable description and links
+          if (_isExpanded) ...[
+            const SizedBox(height: 12),
+            // Description
+            if (widget.task['Description'] != null &&
+                widget.task['Description'].toString().isNotEmpty) ...[
+              Text(
+                'Description',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppStyles.mTextSecondary,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                widget.task['Description'] ?? '',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppStyles.mTextPrimary,
+                  height: 1.5,
+                ),
+              ),
+            ],
+            // Links
+            if (widget.task['links'] != null &&
+                widget.task['links'].toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(LucideIcons.link, size: 14, color: AppStyles.mPrimary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.task['links'].toString(),
+                      style: TextStyle(fontSize: 12, color: AppStyles.mPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ],
+      ),
     );
   }
 }
