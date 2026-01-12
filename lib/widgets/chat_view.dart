@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -21,12 +22,15 @@ class _ChatViewState extends State<ChatView> {
   final _scrollController = ScrollController();
   ViewMode _viewMode = ViewMode.defaultMode;
   String? _attachedFile;
+  String? _attachedFilePath; // Full path for voice file transcription
+  bool _isVoiceFile = false; // Track if attached file is a voice file
   int _timerSeconds = 0;
   Timer? _timer;
 
   // Sidebar state
   bool _isSidebarOpen = false;
   List<Map<String, dynamic>>? _sidebarTasks;
+  String? _sidebarMessageId; // Track which message the tasks belong to
 
   @override
   void initState() {
@@ -71,7 +75,7 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     final text = _inputController.text.trim();
     if (text.isEmpty && _attachedFile == null) return;
 
@@ -79,14 +83,39 @@ class _ChatViewState extends State<ChatView> {
     if (provider.isLoading) return;
 
     String content = text;
-    if (text.isEmpty && _attachedFile != null) {
-      content = "Attached: $_attachedFile";
+
+    // If we have a voice file, transcribe it first
+    if (_attachedFile != null && _isVoiceFile && _attachedFilePath != null) {
+      // Show that we're transcribing
+      setState(() {});
+
+      final transcribedText = await provider.transcribeAudio(
+        _attachedFilePath!,
+      );
+      if (transcribedText != null && transcribedText.isNotEmpty) {
+        // Combine transcribed text with any typed text
+        if (text.isNotEmpty) {
+          content = '$text\n\n[Voice message]: $transcribedText';
+        } else {
+          content = transcribedText;
+        }
+      } else {
+        // Transcription failed, show error
+        if (text.isEmpty) {
+          content = '[Voice file attached but transcription failed]';
+        }
+      }
+    } else if (text.isEmpty && _attachedFile != null) {
+      // For document files, just mention the attachment
+      content = "Attached document: $_attachedFile";
     }
 
     provider.sendMessage(content, MessageRole.user);
     _inputController.clear();
     setState(() {
       _attachedFile = null;
+      _attachedFilePath = null;
+      _isVoiceFile = false;
       _viewMode = ViewMode.defaultMode;
     });
     _scrollToBottom();
@@ -219,76 +248,138 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  Future<void> _pickVoiceFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['mp3', 'wav', 'aac', 'm4a', 'ogg', 'flac', 'wma'],
+        allowMultiple: false,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _attachedFile = result.files.first.name;
+          _attachedFilePath =
+              result.files.first.path; // Store full path for transcription
+          _isVoiceFile = true;
+          _viewMode = ViewMode.defaultMode;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking voice file: $e');
+    }
+  }
+
+  Future<void> _pickDocumentFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
+        allowMultiple: false,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _attachedFile = result.files.first.name;
+          _attachedFilePath = result.files.first.path;
+          _isVoiceFile = false;
+          _viewMode = ViewMode.defaultMode;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking document file: $e');
+    }
+  }
+
   Widget _buildUploadView() {
     return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 550),
-        padding: const EdgeInsets.all(64),
-        decoration: BoxDecoration(
-          color: AppStyles.mSurface,
-          borderRadius: AppStyles.bRadiusLarge,
-          border: Border.all(color: AppStyles.mBackground, width: 3),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Let me help you!',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: AppStyles.mTextPrimary,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              width: 80,
-              height: 6,
-              decoration: BoxDecoration(
-                color: AppStyles.mSecondary,
-                borderRadius: AppStyles.bRadiusSmall,
-              ),
-            ),
-            const SizedBox(height: 48),
-            Text(
-              'Add anything here',
-              style: TextStyle(
-                fontSize: 20,
-                fontStyle: FontStyle.italic,
-                color: AppStyles.mTextSecondary,
-              ),
-            ),
-            const SizedBox(height: 56),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _CircularIconButton(
-                  icon: LucideIcons.uploadCloud,
-                  onTap: () {
-                    setState(() {
-                      _attachedFile = "New Document.pdf";
-                      _viewMode = ViewMode.defaultMode;
-                    });
-                  },
+      child: SingleChildScrollView(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(40),
+          margin: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppStyles.mSurface,
+            borderRadius: AppStyles.bRadiusLarge,
+            border: Border.all(color: AppStyles.mBackground, width: 3),
+          ),
+          child: Stack(
+            children: [
+              // Go back button at top left
+              Positioned(
+                top: 0,
+                left: 0,
+                child: InkWell(
+                  onTap: () => setState(() => _viewMode = ViewMode.defaultMode),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppStyles.mBackground,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      LucideIcons.arrowLeft,
+                      size: 18,
+                      color: AppStyles.mTextSecondary,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 32),
-                _CircularIconButton(
-                  icon: LucideIcons.mic2,
-                  onTap: _startRecording,
-                ),
-                const SizedBox(width: 32),
-                _CircularIconButton(icon: LucideIcons.fileText, onTap: () {}),
-              ],
-            ),
-            const SizedBox(height: 64),
-            TextButton(
-              onPressed: () => setState(() => _viewMode = ViewMode.defaultMode),
-              child: Text(
-                'Go back',
-                style: TextStyle(color: AppStyles.mTextSecondary, fontSize: 16),
               ),
-            ),
-          ],
+              // Main content
+              Padding(
+                padding: const EdgeInsets.only(top: 40),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Upload a file',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyles.mTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: 60,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppStyles.mSecondary,
+                        borderRadius: AppStyles.bRadiusSmall,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Choose file type',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontStyle: FontStyle.italic,
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _UploadOptionButton(
+                          icon: LucideIcons.music,
+                          label: 'Voice File',
+                          subtitle: 'MP3, WAV, AAC, M4A',
+                          onTap: _pickVoiceFile,
+                        ),
+                        const SizedBox(width: 24),
+                        _UploadOptionButton(
+                          icon: LucideIcons.fileText,
+                          label: 'Document',
+                          subtitle: 'PDF, DOC, PPT',
+                          onTap: _pickDocumentFile,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -463,7 +554,7 @@ class _ChatViewState extends State<ChatView> {
                     ),
                   if (msg.tasks != null && msg.tasks!.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    _buildTaskCards(msg.tasks!),
+                    _buildTaskCards(msg.tasks!, msg.id),
                   ],
                 ],
               ),
@@ -474,7 +565,7 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  Widget _buildTaskCards(List<Map<String, dynamic>> tasks) {
+  Widget _buildTaskCards(List<Map<String, dynamic>> tasks, String messageId) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -558,6 +649,7 @@ class _ChatViewState extends State<ChatView> {
           onTap: () {
             setState(() {
               _sidebarTasks = tasks;
+              _sidebarMessageId = messageId;
               _isSidebarOpen = true;
             });
           },
@@ -711,6 +803,13 @@ class _ChatViewState extends State<ChatView> {
       priorityColor: priorityColor,
       priorityLabel: _getPriorityLabel(task['priority']),
       hasDetails: hasDetails,
+      onTaskUpdated: (updatedTask) {
+        // Save to provider when task is updated
+        if (_sidebarMessageId != null) {
+          final provider = context.read<DayCrafterProvider>();
+          provider.updateTaskInMessage(_sidebarMessageId!, updatedTask);
+        }
+      },
     );
   }
 
@@ -797,9 +896,9 @@ class _ChatViewState extends State<ChatView> {
         children: [
           TextField(
             controller: _inputController,
-            maxLines: isInitial ? 2 : 4,
-            minLines: isInitial ? 2 : 1,
-            style: TextStyle(fontSize: 18, color: AppStyles.mTextPrimary),
+            maxLines: isInitial ? 3 : 6, // Increased for more visible text
+            minLines: 3, // Always show at least 3 lines
+            style: TextStyle(fontSize: 16, color: AppStyles.mTextPrimary),
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => _handleSubmit(),
             onChanged: (_) =>
@@ -812,7 +911,7 @@ class _ChatViewState extends State<ChatView> {
               border: InputBorder.none,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12), // Reduced spacing
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -824,7 +923,7 @@ class _ChatViewState extends State<ChatView> {
                     onTap: () => setState(() => _viewMode = ViewMode.upload),
                   ),
                   if (_attachedFile != null) ...[
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 12),
                     _AttachedFileTag(
                       fileName: _attachedFile!,
                       onRemove: () => setState(() => _attachedFile = null),
@@ -834,12 +933,17 @@ class _ChatViewState extends State<ChatView> {
               ),
               Row(
                 children: [
-                  _IconButton(icon: LucideIcons.mic, onTap: _startRecording),
-                  const SizedBox(width: 16),
+                  _IconButton(
+                    icon: LucideIcons.mic,
+                    onTap: _startRecording,
+                    size: 44,
+                  ),
+                  const SizedBox(width: 12),
                   _IconButton(
                     icon: LucideIcons.send,
                     onTap: _handleSubmit,
                     isPrimary: true,
+                    size: 44,
                     enabled:
                         _inputController.text.isNotEmpty ||
                         _attachedFile != null,
@@ -980,12 +1084,14 @@ class _IconButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isPrimary;
   final bool enabled;
+  final double size;
 
   const _IconButton({
     required this.icon,
     required this.onTap,
     this.isPrimary = false,
     this.enabled = true,
+    this.size = 56,
   });
 
   @override
@@ -999,10 +1105,10 @@ class _IconButton extends StatelessWidget {
 
     return InkWell(
       onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(size / 2),
       child: Container(
-        width: 56,
-        height: 56,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: bgColor,
           shape: BoxShape.circle,
@@ -1016,7 +1122,7 @@ class _IconButton extends StatelessWidget {
                 ]
               : null,
         ),
-        child: Icon(icon, color: iconColor, size: 26),
+        child: Icon(icon, color: iconColor, size: size * 0.46),
       ),
     );
   }
@@ -1114,12 +1220,14 @@ class _ExpandableTaskCard extends StatefulWidget {
   final Color priorityColor;
   final String priorityLabel;
   final bool hasDetails;
+  final Function(Map<String, dynamic>)? onTaskUpdated;
 
   const _ExpandableTaskCard({
     required this.task,
     required this.priorityColor,
     required this.priorityLabel,
     required this.hasDetails,
+    this.onTaskUpdated,
   });
 
   @override
@@ -1128,9 +1236,99 @@ class _ExpandableTaskCard extends StatefulWidget {
 
 class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
   bool _isExpanded = false;
+  Map<String, dynamic>? _taskDataInternal;
 
-  Widget _buildDetailItem(IconData icon, String label, String value) {
-    return Row(
+  Map<String, dynamic> get _taskData {
+    _taskDataInternal ??= Map<String, dynamic>.from(widget.task);
+    return _taskDataInternal!;
+  }
+
+  @override
+  void didUpdateWidget(_ExpandableTaskCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.task != oldWidget.task) {
+      _taskDataInternal = Map<String, dynamic>.from(widget.task);
+    }
+  }
+
+  /// Calculates and updates TimeToComplete based on Start and Due dates
+  void _recalculateTimeToComplete() {
+    try {
+      final startDateStr = _taskData['dateOnCalendar'] as String?;
+      final dueDateStr = _taskData['DueDate'] as String?;
+
+      if (startDateStr != null &&
+          startDateStr.isNotEmpty &&
+          startDateStr != '-' &&
+          dueDateStr != null &&
+          dueDateStr.isNotEmpty &&
+          dueDateStr != '-') {
+        final startDate = DateTime.parse(startDateStr);
+        final dueDate = DateTime.parse(dueDateStr);
+        final difference = dueDate.difference(startDate).inDays;
+
+        // Ensure at least 1 day if dates are the same
+        _taskData['TimeToComplete'] = difference > 0 ? difference : 1;
+      }
+    } catch (e) {
+      debugPrint('Error calculating time to complete: $e');
+    }
+  }
+
+  Future<void> _showDatePicker(String fieldKey, String currentValue) async {
+    // Parse current date or use today
+    DateTime initialDate = DateTime.now();
+    try {
+      if (currentValue.isNotEmpty && currentValue != '-') {
+        initialDate = DateTime.parse(currentValue);
+      }
+    } catch (e) {
+      // If parsing fails, use today
+    }
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppStyles.mPrimary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppStyles.mTextPrimary,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: AppStyles.mPrimary),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final formattedDate =
+          '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+      setState(() {
+        _taskData[fieldKey] = formattedDate;
+        // Recalculate time when either date changes
+        _recalculateTimeToComplete();
+      });
+      // Notify parent of the update to save to provider
+      widget.onTaskUpdated?.call(_taskData);
+    }
+  }
+
+  Widget _buildDetailItem(
+    IconData icon,
+    String label,
+    String value, {
+    VoidCallback? onTap,
+  }) {
+    final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: AppStyles.mTextSecondary),
@@ -1139,16 +1337,39 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
           '$label: ',
           style: TextStyle(fontSize: 12, color: AppStyles.mTextSecondary),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: AppStyles.mTextPrimary,
+        Flexible(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: onTap != null
+                  ? AppStyles.mPrimary
+                  : AppStyles.mTextPrimary,
+              decoration: onTap != null ? TextDecoration.underline : null,
+              decorationColor: AppStyles.mPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (onTap != null) ...[
+          const SizedBox(width: 4),
+          Icon(LucideIcons.edit2, size: 12, color: AppStyles.mPrimary),
+        ],
       ],
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: content,
+        ),
+      );
+    }
+    return content;
   }
 
   @override
@@ -1171,8 +1392,9 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Task name and priority badge
+          // Task name, priority badge, and dropdown button row
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
@@ -1184,6 +1406,7 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -1202,71 +1425,60 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
                   ),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Dates row
-          Row(
-            children: [
-              _buildDetailItem(
-                LucideIcons.calendar,
-                'Due',
-                widget.task['DueDate'] ?? '-',
-              ),
-              const SizedBox(width: 20),
-              _buildDetailItem(
-                LucideIcons.play,
-                'Start',
-                widget.task['dateOnCalendar'] ?? '-',
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Time to complete
-          _buildDetailItem(
-            LucideIcons.clock,
-            'Time',
-            '${widget.task['TimeToComplete'] ?? '-'} Days',
-          ),
-          // Dropdown button for details (only if has description or links)
-          if (widget.hasDetails) ...[
-            const SizedBox(height: 8),
-            InkWell(
-              onTap: () => setState(() => _isExpanded = !_isExpanded),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: AppStyles.mBackground,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
+              // Dropdown button in top right corner (only if has details)
+              if (widget.hasDetails) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => setState(() => _isExpanded = !_isExpanded),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppStyles.mBackground,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Icon(
                       _isExpanded
                           ? LucideIcons.chevronUp
                           : LucideIcons.chevronDown,
                       size: 16,
                       color: AppStyles.mTextSecondary,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _isExpanded ? 'Hide details' : 'Show details',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppStyles.mTextSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Dates in same row - Start on left, Due on right
+          Row(
+            children: [
+              _buildDetailItem(
+                LucideIcons.play,
+                'Start',
+                _taskData['dateOnCalendar'] ?? '-',
+                onTap: () => _showDatePicker(
+                  'dateOnCalendar',
+                  _taskData['dateOnCalendar'] ?? '',
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 24),
+              _buildDetailItem(
+                LucideIcons.calendar,
+                'Due',
+                _taskData['DueDate'] ?? '-',
+                onTap: () =>
+                    _showDatePicker('DueDate', _taskData['DueDate'] ?? ''),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Time to complete
+          _buildDetailItem(
+            LucideIcons.clock,
+            'Time',
+            '${_taskData['TimeToComplete'] ?? '-'} Days',
+          ),
           // Expandable description and links
           if (_isExpanded) ...[
             const SizedBox(height: 12),
@@ -1310,6 +1522,68 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
             ],
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _UploadOptionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _UploadOptionButton({
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppStyles.bRadiusMedium,
+      child: Container(
+        width: 180,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppStyles.mBackground.withValues(alpha: 0.5),
+          borderRadius: AppStyles.bRadiusMedium,
+          border: Border.all(
+            color: AppStyles.mTextSecondary.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: AppStyles.mPrimary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: AppStyles.mPrimary, size: 28),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppStyles.mTextPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(fontSize: 11, color: AppStyles.mTextSecondary),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

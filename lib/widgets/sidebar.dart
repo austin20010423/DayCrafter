@@ -92,7 +92,7 @@ class Sidebar extends StatelessWidget {
             ),
           ),
 
-          // Navigation Group based on sketch
+          // Navigation Group
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
@@ -104,8 +104,8 @@ class Sidebar extends StatelessWidget {
                   onTap: () {},
                 ),
                 _SidebarItem(
-                  label: 'Dashboard',
-                  icon: LucideIcons.barChart3,
+                  label: 'Calendar',
+                  icon: LucideIcons.calendar,
                   isActive: false,
                   onTap: () {},
                 ),
@@ -121,8 +121,8 @@ class Sidebar extends StatelessWidget {
                   },
                 ),
                 _SidebarItem(
-                  label: 'Schedule',
-                  icon: LucideIcons.calendar,
+                  label: 'Dashboard',
+                  icon: LucideIcons.barChart3,
                   isActive: false,
                   onTap: () {},
                 ),

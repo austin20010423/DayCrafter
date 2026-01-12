@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http_parser/http_parser.dart';
 import 'models.dart';
 
 class DayCrafterProvider with ChangeNotifier {
@@ -412,5 +414,149 @@ or tell the user what to look first in these task.''';
 
     await _saveProjects();
     notifyListeners();
+  }
+
+  /// Updates a specific task within a message's task list
+  /// This is used when users edit task dates from the sidebar
+  Future<void> updateTaskInMessage(
+    String messageId,
+    Map<String, dynamic> updatedTask,
+  ) async {
+    if (_activeProjectId == null) return;
+
+    final projectIndex = _projects.indexWhere((p) => p.id == _activeProjectId);
+    if (projectIndex == -1) return;
+
+    final project = _projects[projectIndex];
+    final messageIndex = project.messages.indexWhere((m) => m.id == messageId);
+    if (messageIndex == -1) return;
+
+    final message = project.messages[messageIndex];
+    if (message.tasks == null) return;
+
+    // Find and update the task by matching task name
+    final taskIndex = message.tasks!.indexWhere(
+      (t) => t['task'] == updatedTask['task'],
+    );
+    if (taskIndex == -1) return;
+
+    // Create updated task list
+    final updatedTasks = List<Map<String, dynamic>>.from(message.tasks!);
+    updatedTasks[taskIndex] = updatedTask;
+
+    // Create updated message
+    final updatedMessage = Message(
+      id: message.id,
+      role: message.role,
+      text: message.text,
+      timestamp: message.timestamp,
+      tasks: updatedTasks,
+    );
+
+    // Create updated messages list
+    final updatedMessages = List<Message>.from(project.messages);
+    updatedMessages[messageIndex] = updatedMessage;
+
+    // Update project
+    _projects[projectIndex] = project.copyWith(messages: updatedMessages);
+    await _saveProjects();
+    notifyListeners();
+  }
+
+  /// Transcribes an audio file to text using OpenAI Whisper API
+  Future<String?> transcribeAudio(String filePath) async {
+    debugPrint('Starting audio transcription for: $filePath');
+
+    try {
+      // Load API key from .env file
+      String apiKey;
+      try {
+        if (!dotenv.isInitialized) {
+          await dotenv.load(fileName: ".env");
+        }
+        apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+        if (apiKey.isEmpty) {
+          debugPrint('OpenAI API key not found in .env file');
+          return null;
+        }
+      } catch (e) {
+        debugPrint('Dotenv error: $e');
+        return null;
+      }
+
+      // Create multipart request for Whisper API
+      final uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
+      final request = http.MultipartRequest('POST', uri);
+
+      // Add authorization header
+      request.headers['Authorization'] = 'Bearer $apiKey';
+
+      // Add the audio file
+      final file = File(filePath);
+      if (!await file.exists()) {
+        debugPrint('Audio file does not exist: $filePath');
+        return null;
+      }
+
+      // Determine MIME type based on file extension
+      final extension = filePath.split('.').last.toLowerCase();
+      String mimeType = 'audio/mpeg'; // default
+      switch (extension) {
+        case 'wav':
+          mimeType = 'audio/wav';
+          break;
+        case 'mp3':
+          mimeType = 'audio/mpeg';
+          break;
+        case 'm4a':
+          mimeType = 'audio/mp4';
+          break;
+        case 'ogg':
+          mimeType = 'audio/ogg';
+          break;
+        case 'flac':
+          mimeType = 'audio/flac';
+          break;
+        case 'aac':
+          mimeType = 'audio/aac';
+          break;
+        case 'wma':
+          mimeType = 'audio/x-ms-wma';
+          break;
+      }
+
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          'file',
+          filePath,
+          contentType: MediaType.parse(mimeType),
+        ),
+      );
+
+      // Add model parameter
+      request.fields['model'] = 'whisper-1';
+
+      // Send request
+      debugPrint('Sending transcription request to OpenAI...');
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final transcribedText = data['text'] as String?;
+        debugPrint(
+          'Transcription successful: ${transcribedText?.substring(0, transcribedText.length > 50 ? 50 : transcribedText.length)}...',
+        );
+        return transcribedText;
+      } else {
+        debugPrint(
+          'Transcription failed with status ${response.statusCode}: ${response.body}',
+        );
+        return null;
+      }
+    } catch (e) {
+      debugPrint('Transcription error: $e');
+      return null;
+    }
   }
 }
