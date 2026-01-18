@@ -31,7 +31,9 @@ class Message {
       role: MessageRole.values.byName(json['role']),
       text: json['text'],
       timestamp: DateTime.parse(json['timestamp']),
-      tasks: json['tasks'] != null ? List<Map<String, dynamic>>.from(json['tasks']) : null,
+      tasks: json['tasks'] != null
+          ? List<Map<String, dynamic>>.from(json['tasks'])
+          : null,
     );
   }
 }
@@ -42,6 +44,7 @@ class Project {
   final String description;
   final String createdAt;
   final String? colorHex;
+  final String? emoji;
   final List<Message> messages;
 
   Project({
@@ -50,6 +53,7 @@ class Project {
     required this.description,
     required this.createdAt,
     this.colorHex,
+    this.emoji,
     required this.messages,
   });
 
@@ -59,6 +63,7 @@ class Project {
     String? description,
     String? createdAt,
     String? colorHex,
+    String? emoji,
     List<Message>? messages,
   }) {
     return Project(
@@ -67,6 +72,7 @@ class Project {
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       colorHex: colorHex ?? this.colorHex,
+      emoji: emoji ?? this.emoji,
       messages: messages ?? this.messages,
     );
   }
@@ -78,6 +84,7 @@ class Project {
       'description': description,
       'createdAt': createdAt,
       'colorHex': colorHex,
+      'emoji': emoji,
       'messages': messages.map((m) => m.toJson()).toList(),
     };
   }
@@ -89,6 +96,7 @@ class Project {
       description: json['description'],
       createdAt: json['createdAt'],
       colorHex: json['colorHex'],
+      emoji: json['emoji'],
       messages: (json['messages'] as List)
           .map((m) => Message.fromJson(m))
           .toList(),

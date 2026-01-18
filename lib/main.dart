@@ -9,6 +9,8 @@ import 'widgets/header.dart';
 import 'widgets/empty_state.dart';
 import 'widgets/chat_view.dart';
 import 'widgets/project_modal.dart';
+import 'database/objectbox_service.dart';
+import 'services/embedding_service.dart';
 
 // package for testing purposes
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +21,25 @@ void main() async {
 
   // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
+
+  // Initialize ObjectBox database (optional - app works without it)
+  try {
+    await ObjectBoxService.instance.initialize();
+    print("✅ ObjectBox database initialized");
+  } catch (e) {
+    print("⚠️ ObjectBox initialization failed: $e");
+    print("   Semantic search will be disabled.");
+  }
+
+  // Initialize embedding service (uses OpenAI API)
+  EmbeddingService.instance
+      .initialize()
+      .then((_) {
+        print("✅ Embedding service initialized (OpenAI API)");
+      })
+      .catchError((e) {
+        print("⚠️ Embedding service initialization failed: $e");
+      });
 
   //start wipe code
   final prefs = await SharedPreferences.getInstance();
@@ -87,7 +108,11 @@ class _MainLayoutState extends State<MainLayout> {
     showDialog(
       context: context,
       builder: (context) => ProjectModal(
-        onSubmit: (name) => context.read<DayCrafterProvider>().addProject(name),
+        onSubmit: (data) => context.read<DayCrafterProvider>().addProject(
+          data.name,
+          colorHex: data.colorHex,
+          emoji: data.emoji,
+        ),
       ),
     );
   }

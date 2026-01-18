@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http_parser/http_parser.dart';
 import 'models.dart';
+import 'database/objectbox_service.dart';
+import 'services/embedding_service.dart';
 
 class DayCrafterProvider with ChangeNotifier {
   String? _userName;
@@ -78,6 +80,18 @@ class DayCrafterProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Get the next available color from the palette
+  String _getNextAvailableColor() {
+    final usedColors = _projects
+        .map((p) => p.colorHex)
+        .where((c) => c != null)
+        .toSet();
+    return _palette.firstWhere(
+      (color) => !usedColors.contains(color),
+      orElse: () => _palette[0],
+    );
+  }
+
   Future<void> setUserName(String name) async {
     _userName = name.trim();
     final prefs = await SharedPreferences.getInstance();
@@ -85,22 +99,21 @@ class DayCrafterProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addProject(String name) async {
-    final usedColors = _projects
-        .map((p) => p.colorHex)
-        .where((c) => c != null)
-        .toSet();
-    final availableColor = _palette.firstWhere(
-      (color) => !usedColors.contains(color),
-      orElse: () =>
-          _palette[0], // If all used, use first (will repeat, but better than crash)
-    );
+  Future<void> addProject(
+    String name, {
+    String? colorHex,
+    String? emoji,
+  }) async {
+    // Use provided color or pick from palette
+    final effectiveColor = colorHex ?? _getNextAvailableColor();
+
     final newProject = Project(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
       description: '',
-      createdAt: DateTime.now().toString(), // Simple date string
-      colorHex: availableColor,
+      createdAt: DateTime.now().toString(),
+      colorHex: effectiveColor,
+      emoji: emoji,
       messages: [
         Message(
           id: 'welcome',
@@ -141,6 +154,10 @@ class DayCrafterProvider with ChangeNotifier {
 
     _projects[projectIndex] = updatedProject;
     await _saveProjects();
+
+    // Save to ObjectBox for semantic search (in background)
+    _saveMessageToObjectBox(newMessage, _activeProjectId!);
+
     notifyListeners();
 
     if (role == MessageRole.user) {
@@ -241,6 +258,32 @@ or tell the user what to look first in these task.''';
     debugPrint('AI response completed');
   }
 
+  /// Computes TimeToComplete from Start (dateOnCalendar) and Due (DueDate) dates
+  void _computeTimeToComplete(Map<String, dynamic> task) {
+    try {
+      final startDateStr = task['dateOnCalendar'] as String?;
+      final dueDateStr = task['DueDate'] as String?;
+
+      if (startDateStr != null &&
+          startDateStr.isNotEmpty &&
+          dueDateStr != null &&
+          dueDateStr.isNotEmpty) {
+        final startDate = DateTime.parse(startDateStr);
+        final dueDate = DateTime.parse(dueDateStr);
+        final difference = dueDate.difference(startDate).inDays;
+
+        // Ensure at least 1 day
+        task['TimeToComplete'] = difference > 0 ? difference : 1;
+      } else {
+        // Default to 1 day if dates are missing
+        task['TimeToComplete'] = task['TimeToComplete'] ?? 1;
+      }
+    } catch (e) {
+      debugPrint('Error computing time to complete: $e');
+      task['TimeToComplete'] = task['TimeToComplete'] ?? 1;
+    }
+  }
+
   Future<List<Map<String, dynamic>>?> _getTasks(String userText) async {
     debugPrint('Starting task API call...');
     try {
@@ -269,6 +312,11 @@ or tell the user what to look first in these task.''';
           final resultString = data['result'] as String;
           final tasks = jsonDecode(resultString) as List<dynamic>;
           final taskList = tasks.map((t) => t as Map<String, dynamic>).toList();
+
+          // Compute TimeToComplete from Start and Due dates for each task
+          for (final task in taskList) {
+            _computeTimeToComplete(task);
+          }
 
           // Create message with task cards (GPT will provide the summary separately)
           final taskMessage = Message(
@@ -557,6 +605,88 @@ or tell the user what to look first in these task.''';
     } catch (e) {
       debugPrint('Transcription error: $e');
       return null;
+    }
+  }
+
+  /// Perform semantic search across all messages
+  /// Returns messages sorted by relevance to the query
+  Future<List<Message>> semanticSearch(String query, {int limit = 10}) async {
+    try {
+      final dbService = ObjectBoxService.instance;
+      final embeddingService = EmbeddingService.instance;
+
+      // Check if services are ready
+      if (!dbService.isInitialized) {
+        debugPrint('ObjectBox not initialized, skipping semantic search');
+        return [];
+      }
+
+      if (!embeddingService.isReady) {
+        debugPrint('Embedding service not ready, skipping semantic search');
+        return [];
+      }
+
+      // Generate embedding for the query
+      final queryEmbedding = await embeddingService.generateEmbedding(query);
+
+      // Use ObjectBox to find similar messages
+      final results = dbService.semanticSearchWithScores(
+        queryEmbedding,
+        limit: limit,
+      );
+
+      // Convert to domain models and filter by relevance threshold
+      return results
+          .where((r) => r.score > 0.5) // Only include relevant results
+          .map((r) => r.message.toMessage())
+          .toList();
+    } catch (e) {
+      debugPrint('Semantic search error: $e');
+      return [];
+    }
+  }
+
+  /// Save message to ObjectBox with embedding for future semantic search
+  Future<void> _saveMessageToObjectBox(
+    Message message,
+    String projectId,
+  ) async {
+    try {
+      final dbService = ObjectBoxService.instance;
+
+      // Skip if ObjectBox isn't available
+      if (!dbService.isInitialized) return;
+
+      final embeddingService = EmbeddingService.instance;
+
+      // Get or create project entity
+      var projectEntity = dbService.getProjectByUuid(projectId);
+      if (projectEntity == null) {
+        final project = _projects.firstWhere(
+          (p) => p.id == projectId,
+          orElse: () => throw Exception('Project not found'),
+        );
+        projectEntity = await dbService.saveProjectFromDomain(project);
+      }
+
+      // Generate embedding if service is ready
+      List<double>? embedding;
+      if (embeddingService.isReady) {
+        try {
+          embedding = await embeddingService.generateEmbedding(message.text);
+        } catch (e) {
+          debugPrint('Failed to generate embedding: $e');
+        }
+      }
+
+      // Save message with embedding
+      await dbService.saveMessageFromDomain(
+        message,
+        projectEntity,
+        embedding: embedding,
+      );
+    } catch (e) {
+      debugPrint('Failed to save message to ObjectBox: $e');
     }
   }
 }

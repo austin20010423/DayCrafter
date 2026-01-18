@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../styles.dart';
+import 'search_overlay.dart';
 
 class Header extends StatelessWidget {
   final String? activeProjectName;
 
   const Header({super.key, this.activeProjectName});
+
+  void _openSearch(BuildContext context) {
+    SearchOverlay.show(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +49,23 @@ class Header extends StatelessWidget {
           ),
           Row(
             children: [
-              _HeaderIconButton(icon: LucideIcons.search),
+              _HeaderIconButton(
+                icon: LucideIcons.search,
+                onPressed: () => _openSearch(context),
+                tooltip: 'Search (⌘K)',
+              ),
               const SizedBox(width: 20),
-              _HeaderIconButton(icon: LucideIcons.bell),
+              _HeaderIconButton(
+                icon: LucideIcons.bell,
+                onPressed: () {},
+                tooltip: 'Notifications',
+              ),
               const SizedBox(width: 20),
-              _HeaderIconButton(icon: LucideIcons.settings),
+              _HeaderIconButton(
+                icon: LucideIcons.settings,
+                onPressed: () {},
+                tooltip: 'Settings',
+              ),
             ],
           ),
         ],
@@ -57,23 +74,61 @@ class Header extends StatelessWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
+class _HeaderIconButton extends StatefulWidget {
   final IconData icon;
-  const _HeaderIconButton({required this.icon});
+  final VoidCallback onPressed;
+  final String tooltip;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onPressed,
+    required this.tooltip,
+  });
+
+  @override
+  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
+}
+
+class _HeaderIconButtonState extends State<_HeaderIconButton> {
+  bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppStyles.mBackground.withValues(alpha: 0.5),
-        borderRadius: AppStyles.bRadiusSmall,
-      ),
-      child: IconButton(
-        onPressed: () {},
-        icon: Icon(icon, size: 20, color: AppStyles.mTextPrimary),
-        padding: const EdgeInsets.all(8),
-        constraints: const BoxConstraints(),
-        splashRadius: 20,
+    return Tooltip(
+      message: widget.tooltip,
+      preferBelow: false,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? AppStyles.mPrimary.withValues(alpha: 0.15)
+                : AppStyles.mBackground.withValues(alpha: 0.5),
+            borderRadius: AppStyles.bRadiusSmall,
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: AppStyles.mPrimary.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: IconButton(
+            onPressed: widget.onPressed,
+            icon: Icon(
+              widget.icon,
+              size: 20,
+              color: _isHovered ? AppStyles.mPrimary : AppStyles.mTextPrimary,
+            ),
+            padding: const EdgeInsets.all(8),
+            constraints: const BoxConstraints(),
+            splashRadius: 20,
+          ),
+        ),
       ),
     );
   }

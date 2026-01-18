@@ -48,6 +48,13 @@ dependencies:
   flutter_markdown: ^0.7.7+1
   file_picker: ^8.0.0+1
   http_parser: ^4.0.2
+  # ObjectBox for local NoSQL database with vector search
+  objectbox: ^5.1.0
+  objectbox_flutter_libs: any
+  # Path provider for accessing app directories
+  path_provider: ^2.1.2
+  # Emoji picker for project icons
+  emoji_picker_flutter: ^2.2.0
 
 dev_dependencies:
   flutter_test:
@@ -59,6 +66,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # ObjectBox code generation
+  objectbox_generator: ^5.1.0
+  build_runner: ^2.4.13
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
