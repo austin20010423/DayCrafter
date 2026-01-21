@@ -9,6 +9,7 @@ import 'widgets/header.dart';
 import 'widgets/empty_state.dart';
 import 'widgets/chat_view.dart';
 import 'widgets/project_modal.dart';
+import 'widgets/calendar_view.dart';
 import 'database/objectbox_service.dart';
 import 'services/embedding_service.dart';
 
@@ -150,6 +151,11 @@ class _MainLayoutState extends State<MainLayout> {
   }
 
   Widget _buildMainContent(DayCrafterProvider provider) {
+    // Show calendar when calendar is active
+    if (provider.isCalendarActive) {
+      return const CalendarView();
+    }
+
     if (provider.activeProjectId == null) {
       if (provider.projects.isEmpty) {
         return Center(child: EmptyState(onAdd: _showProjectModal));

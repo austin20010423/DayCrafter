@@ -99,10 +99,101 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "3:5489887417224204944",
+      "lastPropertyId": "16:3445624337483829038",
+      "name": "CalendarTaskEntity",
+      "properties": [
+        {
+          "id": "1:4518308446815436143",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7666829019756962203",
+          "name": "uuid",
+          "indexId": "5:8981654602520316427",
+          "type": 9,
+          "flags": 2080
+        },
+        {
+          "id": "3:6692342963394657335",
+          "name": "taskName",
+          "type": 9
+        },
+        {
+          "id": "4:5071313082721512622",
+          "name": "description",
+          "type": 9
+        },
+        {
+          "id": "5:3869015664579259702",
+          "name": "dueDate",
+          "type": 10
+        },
+        {
+          "id": "6:4427087298963051728",
+          "name": "calendarDate",
+          "type": 10
+        },
+        {
+          "id": "7:1082396706250896546",
+          "name": "priority",
+          "type": 6
+        },
+        {
+          "id": "8:7394848531446461073",
+          "name": "timeToComplete",
+          "type": 6
+        },
+        {
+          "id": "9:3470654104147902098",
+          "name": "links",
+          "type": 9
+        },
+        {
+          "id": "10:655511590630379070",
+          "name": "projectId",
+          "type": 9
+        },
+        {
+          "id": "11:6319842858851574866",
+          "name": "messageId",
+          "type": 9
+        },
+        {
+          "id": "12:2311140181716785448",
+          "name": "isCompleted",
+          "type": 1
+        },
+        {
+          "id": "13:9198470597964884342",
+          "name": "createdAt",
+          "type": 10
+        },
+        {
+          "id": "14:9184180476329030146",
+          "name": "originalTaskId",
+          "type": 9
+        },
+        {
+          "id": "15:2967780426182221388",
+          "name": "startTime",
+          "type": 9
+        },
+        {
+          "id": "16:3445624337483829038",
+          "name": "endTime",
+          "type": 9
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "2:5787452846158435810",
-  "lastIndexId": "4:1991264806254853480",
+  "lastEntityId": "3:5489887417224204944",
+  "lastIndexId": "5:8981654602520316427",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
   "modelVersion": 5,

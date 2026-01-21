@@ -1,0 +1,888 @@
+import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
+import '../../provider.dart';
+import '../../styles.dart';
+import '../dot_grid_background.dart';
+
+/// Day View - Default calendar view showing a single day with time slots
+class DayView extends StatelessWidget {
+  const DayView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<DayCrafterProvider>();
+    final selectedDate = provider.selectedDate;
+
+    return Stack(
+      children: [
+        Column(
+          children: [
+            // All Day Tasks Section
+            _buildAllDayTasks(context, provider, selectedDate),
+            const SizedBox(height: 16),
+            // Main content area
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Left side: Date header + Time slots grid
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      children: [
+                        _buildDateHeader(context, provider, selectedDate),
+                        const SizedBox(height: 16),
+                        Expanded(child: _buildTimeGrid(context, selectedDate)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Right side: Mini calendar + AI Summary + Next Task
+                  SizedBox(
+                    width: 280,
+                    child: ClipRRect(
+                      borderRadius: AppStyles.bRadiusMedium,
+                      child: _buildRightPanel(context, provider, selectedDate),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        // Control bar positioned at top-right
+        Positioned(
+          top: 0,
+          right: 0,
+          child: _buildControlBar(context, provider),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControlBar(BuildContext context, DayCrafterProvider provider) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // View toggle and close buttons on the right
+          _buildViewToggleCompact(provider),
+          const SizedBox(width: 8),
+          IconButton(
+            onPressed: () => provider.setCalendarActive(false),
+            icon: const Icon(LucideIcons.x, size: 20),
+            color: AppStyles.mTextSecondary,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateHeader(
+    BuildContext context,
+    DayCrafterProvider provider,
+    DateTime selectedDate,
+  ) {
+    final monthYear = DateFormat('MMMM yyyy').format(selectedDate);
+    final dayNum = selectedDate.day.toString();
+
+    // Align with time grid: 60px for time column matching
+    return Row(
+      children: [
+        // Space to align with time column (60px)
+        const SizedBox(width: 60),
+        // Content area fills the rest, matching the grid content area
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            decoration: BoxDecoration(
+              color: AppStyles.mSurface,
+              borderRadius: AppStyles.bRadiusMedium,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // First row: Navigation arrows + Month/Year
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      onPressed: provider.navigatePrevious,
+                      icon: const Icon(LucideIcons.chevronLeft, size: 24),
+                      color: AppStyles.mTextSecondary,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      monthYear,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyles.mTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    IconButton(
+                      onPressed: provider.navigateNext,
+                      icon: const Icon(LucideIcons.chevronRight, size: 24),
+                      color: AppStyles.mTextSecondary,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Second row: Large date number - centered, no background
+                Text(
+                  dayNum,
+                  style: const TextStyle(
+                    fontSize: 80,
+                    fontWeight: FontWeight.bold,
+                    color: AppStyles.mPrimary,
+                    height: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Helper to parse time string "HH:MM" to minutes from midnight
+  int _parseTimeToMinutes(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return -1;
+    try {
+      final parts = timeStr.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      return hour * 60 + minute;
+    } catch (e) {
+      return -1;
+    }
+  }
+
+  Widget _buildAllDayTasks(
+    BuildContext context,
+    DayCrafterProvider provider,
+    DateTime selectedDate,
+  ) {
+    final allTasks = provider.getTasksForDate(selectedDate);
+    // Filter for tasks strictly without start/end times (All Day)
+    // OR tasks where parsing failed (= -1)
+    final tasks = allTasks.where((t) {
+      final start = _parseTimeToMinutes(t['start_time']);
+      return start == -1;
+    }).toList();
+
+    if (tasks.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppStyles.mSurface,
+          borderRadius: AppStyles.bRadiusMedium,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.listTodo, size: 16, color: AppStyles.mPrimary),
+                const SizedBox(width: 8),
+                const Text(
+                  'Tasks',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppStyles.mTextPrimary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppStyles.mPrimary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    tasks.length.toString(),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppStyles.mPrimary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: tasks.map((task) {
+                final priority = task['priority'] is int
+                    ? task['priority']
+                    : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
+                final priorityColor = AppStyles.getPriorityColor(priority);
+                final isCompleted = task['isCompleted'] == true;
+
+                return InkWell(
+                  onTap: () {
+                    final taskId = task['id']?.toString();
+                    if (taskId != null) {
+                      provider.toggleTaskCompletion(taskId);
+                    }
+                  },
+                  borderRadius: AppStyles.bRadiusSmall,
+                  child: Container(
+                    width: 200,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: priorityColor.withValues(alpha: 0.1),
+                      borderRadius: AppStyles.bRadiusSmall,
+                      border: Border.all(
+                        color: priorityColor.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isCompleted
+                              ? LucideIcons.checkCircle
+                              : LucideIcons.circle,
+                          size: 14,
+                          color: isCompleted
+                              ? AppStyles.mAccent
+                              : priorityColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            (task['start_time'] != null &&
+                                    task['end_time'] != null)
+                                ? '${task['start_time']} - ${task['end_time']} ${task['task']?.toString() ?? 'Untitled'}'
+                                : task['task']?.toString() ?? 'Untitled',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppStyles.mTextPrimary,
+                              decoration: isCompleted
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimeGrid(BuildContext context, DateTime selectedDate) {
+    final provider = context.watch<DayCrafterProvider>();
+    final allTasks = provider.getTasksForDate(selectedDate);
+
+    // Time slots from 7 AM to 11 PM
+    final startHour = 7;
+    final endHour = 23;
+    final hoursCount = endHour - startHour;
+    final hourHeight = 80.0; // Keep the tall slots
+    final totalHeight = hoursCount * hourHeight;
+    final hours = List.generate(hoursCount, (index) => index + startHour);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F9), // Paper-like off-white
+        borderRadius: AppStyles.bRadiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: AppStyles.bRadiusMedium,
+        child: SingleChildScrollView(
+          // Make it scrollable independently
+          child: SizedBox(
+            height: totalHeight,
+            child: Stack(
+              children: [
+                // 1. Time Column & Grid Background
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Time Column
+                    Container(
+                      width: 60,
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          right: BorderSide(
+                            color: Color(0xFFE0E0E0),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        children: hours.map((hour) {
+                          final timeLabel =
+                              '${hour > 12 ? hour - 12 : hour}:00';
+                          return SizedBox(
+                            height: hourHeight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 8, right: 8),
+                              child: Text(
+                                timeLabel,
+                                style: const TextStyle(
+                                  fontFamily: 'Courier',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF555555),
+                                ),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                    // Dot Grid Task Area Background
+                    Expanded(
+                      child: DotGridBackground(
+                        child: Column(
+                          children: List.generate(hours.length, (index) {
+                            return Container(
+                              height: hourHeight,
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(color: Colors.transparent),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // 2. Positioned Tasks
+                Positioned.fill(
+                  left: 60, // Offset by time column width
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final taskWidgets = <Widget>[];
+
+                      for (final task in allTasks) {
+                        final startTime = _parseTimeToMinutes(
+                          task['start_time'],
+                        );
+                        final endTime = _parseTimeToMinutes(task['end_time']);
+
+                        if (startTime == -1 || endTime == -1) continue;
+
+                        final startMinute = startTime - (startHour * 60);
+                        final durationMinutes = endTime - startTime;
+
+                        if (startMinute < 0) continue;
+
+                        final top = (startMinute / 60) * hourHeight;
+                        final height = (durationMinutes / 60) * hourHeight;
+
+                        final priority = task['priority'] is int
+                            ? task['priority']
+                            : int.tryParse(
+                                    task['priority']?.toString() ?? '3',
+                                  ) ??
+                                  3;
+                        final priorityColor = AppStyles.getPriorityColor(
+                          priority,
+                        );
+                        final isCompleted = task['isCompleted'] == true;
+
+                        taskWidgets.add(
+                          Positioned(
+                            top: top,
+                            left: 10,
+                            right: 10, // Padding
+                            height: height > 30 ? height : 30, // Min height
+                            child: GestureDetector(
+                              onTap: () {
+                                final taskId = task['id']?.toString();
+                                if (taskId != null) {
+                                  provider.toggleTaskCompletion(taskId);
+                                }
+                              },
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: priorityColor.withValues(
+                                      alpha: 0.15,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: priorityColor,
+                                        width: 4,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          task['task']?.toString() ??
+                                              'Untitled',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppStyles.mTextPrimary,
+                                            decoration: isCompleted
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (height > 45)
+                                        Text(
+                                          '${task['start_time']} - ${task['end_time']}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: AppStyles.mTextSecondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      return Stack(children: taskWidgets);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRightPanel(
+    BuildContext context,
+    DayCrafterProvider provider,
+    DateTime selectedDate,
+  ) {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Spacer for control bar
+          const SizedBox(height: 60),
+          // Mini Calendar
+          _buildMiniCalendar(context, provider, selectedDate),
+          const SizedBox(height: 16),
+          // AI Summary placeholder
+          _buildAISummary(context),
+          const SizedBox(height: 16),
+          // Tasks list
+          _buildNextTask(context, provider, selectedDate),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniCalendar(
+    BuildContext context,
+    DayCrafterProvider provider,
+    DateTime selectedDate,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppStyles.mSurface,
+        borderRadius: AppStyles.bRadiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TableCalendar(
+        firstDay: DateTime.utc(2020, 1, 1),
+        lastDay: DateTime.utc(2030, 12, 31),
+        focusedDay: selectedDate,
+        selectedDayPredicate: (day) => isSameDay(day, selectedDate),
+        onDaySelected: (selectedDay, focusedDay) {
+          provider.setSelectedDate(selectedDay);
+        },
+        calendarFormat: CalendarFormat.month,
+        headerStyle: HeaderStyle(
+          formatButtonVisible: false,
+          titleCentered: true,
+          titleTextStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppStyles.mTextPrimary,
+          ),
+          leftChevronIcon: Icon(
+            LucideIcons.chevronLeft,
+            size: 16,
+            color: AppStyles.mTextSecondary,
+          ),
+          rightChevronIcon: Icon(
+            LucideIcons.chevronRight,
+            size: 16,
+            color: AppStyles.mTextSecondary,
+          ),
+        ),
+        calendarStyle: CalendarStyle(
+          todayDecoration: BoxDecoration(
+            color: AppStyles.mSecondary.withValues(alpha: 0.5),
+            shape: BoxShape.circle,
+          ),
+          selectedDecoration: BoxDecoration(
+            color: AppStyles.mPrimary,
+            shape: BoxShape.circle,
+          ),
+          defaultTextStyle: const TextStyle(
+            fontSize: 12,
+            color: AppStyles.mTextPrimary,
+          ),
+          weekendTextStyle: const TextStyle(
+            fontSize: 12,
+            color: AppStyles.mTextSecondary,
+          ),
+          outsideTextStyle: TextStyle(
+            fontSize: 12,
+            color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
+          ),
+        ),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppStyles.mTextSecondary,
+          ),
+          weekendStyle: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+            color: AppStyles.mTextSecondary.withValues(alpha: 0.7),
+          ),
+        ),
+        rowHeight: 32,
+        daysOfWeekHeight: 24,
+      ),
+    );
+  }
+
+  Widget _buildAISummary(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppStyles.mSurface,
+        borderRadius: AppStyles.bRadiusMedium,
+        border: Border.all(
+          color: AppStyles.mAccent.withValues(alpha: 0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.sparkles, size: 18, color: AppStyles.mAccent),
+              const SizedBox(width: 8),
+              const Text(
+                'AI Summary',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppStyles.mTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No events scheduled for today. Use the Agent to plan your tasks!',
+            style: TextStyle(
+              fontSize: 13,
+              color: AppStyles.mTextSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextTask(
+    BuildContext context,
+    DayCrafterProvider provider,
+    DateTime selectedDate,
+  ) {
+    final tasks = provider.getTasksForDate(selectedDate);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppStyles.mSurface,
+        borderRadius: AppStyles.bRadiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.listTodo, size: 18, color: AppStyles.mPrimary),
+              const SizedBox(width: 8),
+              Text(
+                'Tasks (${tasks.length})',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppStyles.mTextPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (tasks.isEmpty)
+            Text(
+              'No tasks for this day',
+              style: TextStyle(fontSize: 13, color: AppStyles.mTextSecondary),
+            )
+          else
+            ...tasks.take(3).map((task) => _buildTaskItem(task, provider)),
+          if (tasks.length > 3)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '+${tasks.length - 3} more tasks',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppStyles.mPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTaskItem(
+    Map<String, dynamic> task,
+    DayCrafterProvider provider,
+  ) {
+    final priority = task['priority'] is int
+        ? task['priority']
+        : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
+    final priorityColor = AppStyles.getPriorityColor(priority);
+    final isCompleted = task['isCompleted'] == true;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () {
+          final taskId = task['id']?.toString();
+          if (taskId != null) {
+            provider.toggleTaskCompletion(taskId);
+          }
+        },
+        borderRadius: AppStyles.bRadiusSmall,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: priorityColor.withValues(alpha: 0.1),
+            borderRadius: AppStyles.bRadiusSmall,
+            border: Border.all(color: priorityColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isCompleted ? LucideIcons.checkCircle : LucideIcons.circle,
+                size: 16,
+                color: isCompleted ? AppStyles.mAccent : priorityColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  (task['start_time'] != null && task['end_time'] != null)
+                      ? '${task['start_time']} - ${task['end_time']} ${task['task']?.toString() ?? 'Untitled'}'
+                      : task['task']?.toString() ?? 'Untitled',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppStyles.mTextPrimary,
+                    decoration: isCompleted ? TextDecoration.lineThrough : null,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewToggleCompact(DayCrafterProvider provider) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ViewToggleButton(
+          label: 'Day',
+          isActive: provider.currentCalendarView == CalendarViewType.day,
+          onTap: () => provider.setCalendarView(CalendarViewType.day),
+          compact: true,
+        ),
+        const SizedBox(width: 4),
+        _ViewToggleButton(
+          label: 'Week',
+          isActive: provider.currentCalendarView == CalendarViewType.week,
+          onTap: () => provider.setCalendarView(CalendarViewType.week),
+          compact: true,
+        ),
+        const SizedBox(width: 4),
+        _ViewToggleButton(
+          label: 'Month',
+          isActive: provider.currentCalendarView == CalendarViewType.month,
+          onTap: () => provider.setCalendarView(CalendarViewType.month),
+          compact: true,
+        ),
+      ],
+    );
+  }
+}
+
+class _ViewToggleButton extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+  final bool compact;
+
+  const _ViewToggleButton({
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppStyles.bRadiusSmall,
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 24,
+            vertical: compact ? 6 : 10,
+          ),
+          decoration: BoxDecoration(
+            color: isActive ? AppStyles.mPrimary : AppStyles.mSurface,
+            borderRadius: AppStyles.bRadiusSmall,
+            border: Border.all(
+              color: isActive
+                  ? AppStyles.mPrimary
+                  : AppStyles.mTextSecondary.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: compact ? 12 : 14,
+              fontWeight: FontWeight.w600,
+              color: isActive ? Colors.white : AppStyles.mTextSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -140,6 +140,113 @@ final _entities = <obx_int.ModelEntity>[
       ),
     ],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(3, 5489887417224204944),
+    name: 'CalendarTaskEntity',
+    lastPropertyId: const obx_int.IdUid(16, 3445624337483829038),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 4518308446815436143),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 7666829019756962203),
+        name: 'uuid',
+        type: 9,
+        flags: 2080,
+        indexId: const obx_int.IdUid(5, 8981654602520316427),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 6692342963394657335),
+        name: 'taskName',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 5071313082721512622),
+        name: 'description',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 3869015664579259702),
+        name: 'dueDate',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 4427087298963051728),
+        name: 'calendarDate',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 1082396706250896546),
+        name: 'priority',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 7394848531446461073),
+        name: 'timeToComplete',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(9, 3470654104147902098),
+        name: 'links',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(10, 655511590630379070),
+        name: 'projectId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(11, 6319842858851574866),
+        name: 'messageId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(12, 2311140181716785448),
+        name: 'isCompleted',
+        type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(13, 9198470597964884342),
+        name: 'createdAt',
+        type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(14, 9184180476329030146),
+        name: 'originalTaskId',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(15, 2967780426182221388),
+        name: 'startTime',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(16, 3445624337483829038),
+        name: 'endTime',
+        type: 9,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -185,8 +292,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(2, 5787452846158435810),
-    lastIndexId: const obx_int.IdUid(4, 1991264806254853480),
+    lastEntityId: const obx_int.IdUid(3, 5489887417224204944),
+    lastIndexId: const obx_int.IdUid(5, 8981654602520316427),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -352,6 +459,147 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    CalendarTaskEntity: obx_int.EntityDefinition<CalendarTaskEntity>(
+      model: _entities[2],
+      toOneRelations: (CalendarTaskEntity object) => [],
+      toManyRelations: (CalendarTaskEntity object) => {},
+      getId: (CalendarTaskEntity object) => object.id,
+      setId: (CalendarTaskEntity object, int id) {
+        object.id = id;
+      },
+      objectToFB: (CalendarTaskEntity object, fb.Builder fbb) {
+        final uuidOffset = fbb.writeString(object.uuid);
+        final taskNameOffset = fbb.writeString(object.taskName);
+        final descriptionOffset = object.description == null
+            ? null
+            : fbb.writeString(object.description!);
+        final linksOffset = object.links == null
+            ? null
+            : fbb.writeString(object.links!);
+        final projectIdOffset = object.projectId == null
+            ? null
+            : fbb.writeString(object.projectId!);
+        final messageIdOffset = object.messageId == null
+            ? null
+            : fbb.writeString(object.messageId!);
+        final originalTaskIdOffset = object.originalTaskId == null
+            ? null
+            : fbb.writeString(object.originalTaskId!);
+        final startTimeOffset = object.startTime == null
+            ? null
+            : fbb.writeString(object.startTime!);
+        final endTimeOffset = object.endTime == null
+            ? null
+            : fbb.writeString(object.endTime!);
+        fbb.startTable(17);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, uuidOffset);
+        fbb.addOffset(2, taskNameOffset);
+        fbb.addOffset(3, descriptionOffset);
+        fbb.addInt64(4, object.dueDate?.millisecondsSinceEpoch);
+        fbb.addInt64(5, object.calendarDate.millisecondsSinceEpoch);
+        fbb.addInt64(6, object.priority);
+        fbb.addInt64(7, object.timeToComplete);
+        fbb.addOffset(8, linksOffset);
+        fbb.addOffset(9, projectIdOffset);
+        fbb.addOffset(10, messageIdOffset);
+        fbb.addBool(11, object.isCompleted);
+        fbb.addInt64(12, object.createdAt.millisecondsSinceEpoch);
+        fbb.addOffset(13, originalTaskIdOffset);
+        fbb.addOffset(14, startTimeOffset);
+        fbb.addOffset(15, endTimeOffset);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final dueDateValue = const fb.Int64Reader().vTableGetNullable(
+          buffer,
+          rootOffset,
+          12,
+        );
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final uuidParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 6, '');
+        final originalTaskIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 30);
+        final taskNameParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 8, '');
+        final descriptionParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 10);
+        final dueDateParam = dueDateValue == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(dueDateValue);
+        final calendarDateParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 14, 0),
+        );
+        final startTimeParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 32);
+        final endTimeParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 34);
+        final priorityParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          16,
+          0,
+        );
+        final timeToCompleteParam = const fb.Int64Reader().vTableGetNullable(
+          buffer,
+          rootOffset,
+          18,
+        );
+        final linksParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 20);
+        final projectIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 22);
+        final messageIdParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 24);
+        final isCompletedParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          26,
+          false,
+        );
+        final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 28, 0),
+        );
+        final object = CalendarTaskEntity(
+          id: idParam,
+          uuid: uuidParam,
+          originalTaskId: originalTaskIdParam,
+          taskName: taskNameParam,
+          description: descriptionParam,
+          dueDate: dueDateParam,
+          calendarDate: calendarDateParam,
+          startTime: startTimeParam,
+          endTime: endTimeParam,
+          priority: priorityParam,
+          timeToComplete: timeToCompleteParam,
+          links: linksParam,
+          projectId: projectIdParam,
+          messageId: messageIdParam,
+          isCompleted: isCompletedParam,
+          createdAt: createdAtParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -435,5 +683,88 @@ class ProjectEntity_ {
   /// see [ProjectEntity.messages]
   static final messages = obx.QueryBacklinkToMany<MessageEntity, ProjectEntity>(
     MessageEntity_.project,
+  );
+}
+
+/// [CalendarTaskEntity] entity fields to define ObjectBox queries.
+class CalendarTaskEntity_ {
+  /// See [CalendarTaskEntity.id].
+  static final id = obx.QueryIntegerProperty<CalendarTaskEntity>(
+    _entities[2].properties[0],
+  );
+
+  /// See [CalendarTaskEntity.uuid].
+  static final uuid = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[1],
+  );
+
+  /// See [CalendarTaskEntity.taskName].
+  static final taskName = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[2],
+  );
+
+  /// See [CalendarTaskEntity.description].
+  static final description = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[3],
+  );
+
+  /// See [CalendarTaskEntity.dueDate].
+  static final dueDate = obx.QueryDateProperty<CalendarTaskEntity>(
+    _entities[2].properties[4],
+  );
+
+  /// See [CalendarTaskEntity.calendarDate].
+  static final calendarDate = obx.QueryDateProperty<CalendarTaskEntity>(
+    _entities[2].properties[5],
+  );
+
+  /// See [CalendarTaskEntity.priority].
+  static final priority = obx.QueryIntegerProperty<CalendarTaskEntity>(
+    _entities[2].properties[6],
+  );
+
+  /// See [CalendarTaskEntity.timeToComplete].
+  static final timeToComplete = obx.QueryIntegerProperty<CalendarTaskEntity>(
+    _entities[2].properties[7],
+  );
+
+  /// See [CalendarTaskEntity.links].
+  static final links = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[8],
+  );
+
+  /// See [CalendarTaskEntity.projectId].
+  static final projectId = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[9],
+  );
+
+  /// See [CalendarTaskEntity.messageId].
+  static final messageId = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[10],
+  );
+
+  /// See [CalendarTaskEntity.isCompleted].
+  static final isCompleted = obx.QueryBooleanProperty<CalendarTaskEntity>(
+    _entities[2].properties[11],
+  );
+
+  /// See [CalendarTaskEntity.createdAt].
+  static final createdAt = obx.QueryDateProperty<CalendarTaskEntity>(
+    _entities[2].properties[12],
+  );
+
+  /// See [CalendarTaskEntity.originalTaskId].
+  static final originalTaskId = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[13],
+  );
+
+  /// See [CalendarTaskEntity.startTime].
+  static final startTime = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[14],
+  );
+
+  /// See [CalendarTaskEntity.endTime].
+  static final endTime = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[15],
   );
 }

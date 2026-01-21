@@ -191,16 +191,19 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                     _SidebarItem(
                       label: 'Calendar',
                       icon: LucideIcons.calendar,
-                      isActive: false,
+                      isActive: provider.isCalendarActive,
                       isCollapsed: !showExpanded,
-                      onTap: () {},
+                      onTap: () => provider.setCalendarActive(true),
                     ),
                     _SidebarItem(
                       label: 'Agent',
                       icon: LucideIcons.smile,
-                      isActive: provider.activeProjectId != null,
+                      isActive:
+                          !provider.isCalendarActive &&
+                          provider.activeProjectId != null,
                       isCollapsed: !showExpanded,
                       onTap: () {
+                        provider.setCalendarActive(false);
                         if (provider.activeProjectId == null &&
                             provider.projects.isNotEmpty) {
                           provider.setActiveProject(provider.projects.first.id);

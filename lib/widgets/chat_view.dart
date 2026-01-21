@@ -135,6 +135,72 @@ class _ChatViewState extends State<ChatView> {
     return 'Good evening';
   }
 
+  /// Get fresh task data from a message in the provider
+  /// This ensures we get any edits made in the sidebar
+  List<Map<String, dynamic>>? _getFreshTasksFromMessage(
+    DayCrafterProvider provider,
+    String messageId,
+  ) {
+    final project = provider.activeProject;
+    if (project == null) return null;
+
+    try {
+      final message = project.messages.firstWhere((m) => m.id == messageId);
+      return message.tasks;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _submitTasksToCalendar(
+    List<Map<String, dynamic>> tasks,
+    String messageId,
+  ) async {
+    final provider = context.read<DayCrafterProvider>();
+
+    // Get fresh task data from the message (includes any edits made in sidebar)
+    final freshTasks = _getFreshTasksFromMessage(provider, messageId) ?? tasks;
+
+    debugPrint('📋 Submitting ${freshTasks.length} tasks to calendar...');
+    for (final task in freshTasks) {
+      debugPrint(
+        '  - Task: ${task['task']}, start_time: ${task['start_time']}, end_time: ${task['end_time']}',
+      );
+    }
+
+    // Save tasks to calendar database
+    await provider.saveTasksToCalendar(freshTasks, messageId: messageId);
+
+    // Mark tasks as submitted to calendar in the message
+    for (final task in freshTasks) {
+      task['submittedToCalendar'] = true;
+      provider.updateTaskInMessage(messageId, task);
+    }
+
+    // Show confirmation
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(LucideIcons.checkCircle, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              Text('${freshTasks.length} task(s) added to calendar!'),
+            ],
+          ),
+          backgroundColor: AppStyles.mAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+
+    // Close sidebar if open
+    if (_isSidebarOpen) {
+      setState(() => _isSidebarOpen = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DayCrafterProvider>();
@@ -644,40 +710,91 @@ class _ChatViewState extends State<ChatView> {
           }).toList(),
         ),
         const SizedBox(height: 12),
-        // Click here to edit button
-        GestureDetector(
-          onTap: () {
-            setState(() {
-              _sidebarTasks = tasks;
-              _sidebarMessageId = messageId;
-              _isSidebarOpen = true;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppStyles.mPrimary.withValues(alpha: 0.1),
-              borderRadius: AppStyles.bRadiusMedium,
-              border: Border.all(
-                color: AppStyles.mPrimary.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.edit3, size: 16, color: AppStyles.mPrimary),
-                const SizedBox(width: 8),
-                Text(
-                  'Click here to edit',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppStyles.mPrimary,
+        // Click here to edit button and Done button
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _sidebarTasks = tasks;
+                  _sidebarMessageId = messageId;
+                  _isSidebarOpen = true;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppStyles.mPrimary.withValues(alpha: 0.1),
+                  borderRadius: AppStyles.bRadiusMedium,
+                  border: Border.all(
+                    color: AppStyles.mPrimary.withValues(alpha: 0.3),
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.edit3,
+                      size: 16,
+                      color: AppStyles.mPrimary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Click here to edit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppStyles.mPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
+            const SizedBox(width: 12),
+            // Done button to submit tasks to calendar
+            GestureDetector(
+              onTap: () {
+                _submitTasksToCalendar(tasks, messageId);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppStyles.mAccent.withValues(alpha: 0.15),
+                  borderRadius: AppStyles.bRadiusMedium,
+                  border: Border.all(
+                    color: AppStyles.mAccent.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.checkCircle,
+                      size: 16,
+                      color: AppStyles.mAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Done',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppStyles.mAccent,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -767,6 +884,44 @@ class _ChatViewState extends State<ChatView> {
                       ),
                     ),
                   ),
+                  // Done button in header
+                  GestureDetector(
+                    onTap: () {
+                      if (_sidebarMessageId != null) {
+                        _submitTasksToCalendar(tasks, _sidebarMessageId!);
+                      }
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: AppStyles.bRadiusSmall,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.checkCircle,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Done',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => setState(() => _isSidebarOpen = false),
                     icon: Icon(LucideIcons.x, color: Colors.white),
@@ -783,6 +938,40 @@ class _ChatViewState extends State<ChatView> {
                   final task = sortedTasks[index];
                   return _buildDetailedTaskCard(task);
                 },
+              ),
+            ),
+            // Bottom Done button
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppStyles.mSurface,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (_sidebarMessageId != null) {
+                      _submitTasksToCalendar(tasks, _sidebarMessageId!);
+                    }
+                  },
+                  icon: Icon(LucideIcons.checkCircle, size: 18),
+                  label: const Text('Done - Add to Calendar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppStyles.mAccent,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppStyles.bRadiusMedium,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1322,6 +1511,55 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
     }
   }
 
+  Future<void> _showTimePicker(String fieldKey, String? currentValue) async {
+    // Parse current time or use 9:00 as default
+    TimeOfDay initialTime = const TimeOfDay(hour: 9, minute: 0);
+    try {
+      if (currentValue != null &&
+          currentValue.isNotEmpty &&
+          currentValue != '--:--') {
+        final parts = currentValue.split(':');
+        initialTime = TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        );
+      }
+    } catch (e) {
+      // If parsing fails, use default
+    }
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: AppStyles.mPrimary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppStyles.mTextPrimary,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: AppStyles.mPrimary),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      final formattedTime =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      setState(() {
+        _taskData[fieldKey] = formattedTime;
+      });
+      // Notify parent of the update to save to provider
+      widget.onTaskUpdated?.call(_taskData);
+    }
+  }
+
   Widget _buildDetailItem(
     IconData icon,
     String label,
@@ -1478,6 +1716,26 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
             LucideIcons.clock,
             'Time',
             '${_taskData['TimeToComplete'] ?? '-'} Days',
+          ),
+          const SizedBox(height: 4),
+          // Start time and end time row
+          Row(
+            children: [
+              _buildDetailItem(
+                LucideIcons.clock3,
+                'Start Time',
+                _taskData['start_time'] ?? '--:--',
+                onTap: () =>
+                    _showTimePicker('start_time', _taskData['start_time']),
+              ),
+              const SizedBox(width: 24),
+              _buildDetailItem(
+                LucideIcons.clock9,
+                'End Time',
+                _taskData['end_time'] ?? '--:--',
+                onTap: () => _showTimePicker('end_time', _taskData['end_time']),
+              ),
+            ],
           ),
           // Expandable description and links
           if (_isExpanded) ...[

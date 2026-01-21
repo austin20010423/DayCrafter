@@ -9,7 +9,7 @@ class MainFlutterWindow: NSWindow {
     self.setFrame(windowFrame, display: true)
     
     // Set minimum window size to prevent overflow
-    self.minSize = NSSize(width: 1000, height: 700)
+    self.minSize = NSSize(width: 1100, height: 750)
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 

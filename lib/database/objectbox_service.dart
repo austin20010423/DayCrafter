@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:objectbox/objectbox.dart';
 import 'package:path_provider/path_provider.dart';
 import '../objectbox.g.dart';
@@ -12,6 +13,7 @@ class ObjectBoxService {
   Store? _store;
   Box<ProjectEntity>? _projectBox;
   Box<MessageEntity>? _messageBox;
+  Box<CalendarTaskEntity>? _calendarTaskBox;
 
   bool _isInitialized = false;
 
@@ -22,6 +24,7 @@ class ObjectBoxService {
   Store get store => _store!;
   Box<ProjectEntity> get projectBox => _projectBox!;
   Box<MessageEntity> get messageBox => _messageBox!;
+  Box<CalendarTaskEntity> get calendarTaskBox => _calendarTaskBox!;
 
   ObjectBoxService._();
 
@@ -42,6 +45,7 @@ class ObjectBoxService {
     _store = await openStore(directory: '${appSupportDir.path}/objectbox');
     _projectBox = _store!.box<ProjectEntity>();
     _messageBox = _store!.box<MessageEntity>();
+    _calendarTaskBox = _store!.box<CalendarTaskEntity>();
     _isInitialized = true;
   }
 
@@ -51,6 +55,16 @@ class ObjectBoxService {
       _store!.close();
       _isInitialized = false;
     }
+  }
+
+  /// Wipe all data (for testing/reset)
+  void clearAllData() {
+    if (!_isInitialized) return;
+    debugPrint('🔥 Wiping all data from database...');
+    _projectBox?.removeAll();
+    _messageBox?.removeAll();
+    _calendarTaskBox?.removeAll();
+    debugPrint('✨ Database cleared');
   }
 
   // ============= Project Operations =============
@@ -131,6 +145,186 @@ class ObjectBoxService {
       return messageBox.remove(entity.id);
     }
     return false;
+  }
+
+  // ============= Calendar Task Operations =============
+
+  /// Save a calendar task
+  int saveCalendarTask(CalendarTaskEntity task) {
+    // Check if task with same UUID exists
+    // Using getAll for reliability
+    final allTasks = calendarTaskBox.getAll();
+    try {
+      final existing = allTasks.firstWhere((t) => t.uuid == task.uuid);
+      task.id = existing.id; // Update existing
+      debugPrint('found existing task with id: ${existing.id}');
+    } catch (_) {
+      // Not found, new task
+    }
+
+    return calendarTaskBox.put(task);
+  }
+
+  /// Save multiple calendar tasks
+  void saveCalendarTasks(List<CalendarTaskEntity> tasks) {
+    // Deduplicate input list by UUID to prevent batch errors
+    final uniqueTasks = <String, CalendarTaskEntity>{};
+    for (final task in tasks) {
+      uniqueTasks[task.uuid] = task;
+    }
+    final deduplicatedList = uniqueTasks.values.toList();
+
+    // Process each task individually to avoid unique constraint violations
+    for (final task in deduplicatedList) {
+      // Try to find existing task by UUID
+      final query = calendarTaskBox
+          .query(CalendarTaskEntity_.uuid.equals(task.uuid))
+          .build();
+      final existing = query.findFirst();
+      query.close();
+
+      if (existing != null) {
+        task.id = existing.id;
+      } else {
+        task.id = 0; // Ensure ID is 0 for new tasks
+      }
+    }
+
+    try {
+      calendarTaskBox.putMany(deduplicatedList);
+    } catch (e) {
+      debugPrint('❌ Batch save failed: $e. Retrying individually...');
+      for (final task in deduplicatedList) {
+        try {
+          calendarTaskBox.put(task);
+        } catch (innerE) {
+          debugPrint('  - Failed to save task ${task.taskName}: $innerE');
+        }
+      }
+    }
+  }
+
+  /// Get all calendar tasks
+  List<CalendarTaskEntity> getAllCalendarTasks() {
+    return calendarTaskBox.getAll();
+  }
+
+  /// Get calendar tasks for a specific date
+  List<CalendarTaskEntity> getTasksForDate(DateTime date) {
+    final startOfDay = DateTime(date.year, date.month, date.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    // Get all tasks and filter by date (simpler and more reliable)
+    final allTasks = calendarTaskBox.getAll();
+    return allTasks.where((task) {
+      final taskDate = task.calendarDate;
+      return taskDate.isAfter(
+            startOfDay.subtract(const Duration(milliseconds: 1)),
+          ) &&
+          taskDate.isBefore(endOfDay);
+    }).toList();
+  }
+
+  /// Get calendar tasks for a date range
+  List<CalendarTaskEntity> getTasksForDateRange(DateTime start, DateTime end) {
+    final startOfDay = DateTime(start.year, start.month, start.day);
+    final endOfDay = DateTime(
+      end.year,
+      end.month,
+      end.day,
+    ).add(const Duration(days: 1));
+
+    // Get all tasks and filter by date range
+    final allTasks = calendarTaskBox.getAll();
+    return allTasks.where((task) {
+      final taskDate = task.calendarDate;
+      return taskDate.isAfter(
+            startOfDay.subtract(const Duration(milliseconds: 1)),
+          ) &&
+          taskDate.isBefore(endOfDay);
+    }).toList();
+  }
+
+  /// Get a calendar task by UUID
+  CalendarTaskEntity? getCalendarTaskByUuid(String uuid) {
+    final query = calendarTaskBox
+        .query(CalendarTaskEntity_.uuid.equals(uuid))
+        .build();
+    final result = query.findFirst();
+    query.close();
+    return result;
+  }
+
+  /// Update a calendar task
+  int updateCalendarTask(CalendarTaskEntity task) {
+    return calendarTaskBox.put(task);
+  }
+
+  /// Delete a calendar task by UUID
+  bool deleteCalendarTaskByUuid(String uuid) {
+    final entity = getCalendarTaskByUuid(uuid);
+    if (entity != null) {
+      return calendarTaskBox.remove(entity.id);
+    }
+    return false;
+  }
+
+  /// Delete all calendar tasks for a specific project
+  void deleteCalendarTasksForProject(String projectId) {
+    final query = calendarTaskBox
+        .query(CalendarTaskEntity_.projectId.equals(projectId))
+        .build();
+    final tasks = query.find();
+
+    debugPrint('🗑️ Deleting ${tasks.length} tasks for project $projectId');
+    calendarTaskBox.removeMany(tasks.map((t) => t.id).toList());
+    query.close();
+  }
+
+  /// Toggle task completion status
+  void toggleTaskCompletion(String uuid) {
+    final task = getCalendarTaskByUuid(uuid);
+    if (task != null) {
+      task.isCompleted = !task.isCompleted;
+      calendarTaskBox.put(task);
+    }
+  }
+
+  /// Search calendar tasks by text query with optional date range filter
+  List<CalendarTaskEntity> searchTasksByText(
+    String query, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    final lowercaseQuery = query.toLowerCase();
+
+    // Get all tasks and filter by text match
+    var allTasks = calendarTaskBox.getAll();
+
+    // Filter by text match (task name or description)
+    var filtered = allTasks.where((task) {
+      final nameMatch = task.taskName.toLowerCase().contains(lowercaseQuery);
+      final descMatch =
+          task.description?.toLowerCase().contains(lowercaseQuery) ?? false;
+      return nameMatch || descMatch;
+    });
+
+    // Apply date range filter if provided
+    if (startDate != null) {
+      final start = DateTime(startDate.year, startDate.month, startDate.day);
+      filtered = filtered.where((task) => !task.calendarDate.isBefore(start));
+    }
+
+    if (endDate != null) {
+      final end = DateTime(
+        endDate.year,
+        endDate.month,
+        endDate.day,
+      ).add(const Duration(days: 1));
+      filtered = filtered.where((task) => task.calendarDate.isBefore(end));
+    }
+
+    return filtered.toList();
   }
 
   // ============= Semantic Search Operations =============

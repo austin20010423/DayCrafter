@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
@@ -8,13 +9,22 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http_parser/http_parser.dart';
 import 'models.dart';
 import 'database/objectbox_service.dart';
+import 'database/objectbox_entities.dart';
 import 'services/embedding_service.dart';
+
+/// Calendar view types
+enum CalendarViewType { day, week, month }
 
 class DayCrafterProvider with ChangeNotifier {
   String? _userName;
   List<Project> _projects = [];
   String? _activeProjectId;
   bool _isLoading = false;
+
+  // Calendar state
+  bool _isCalendarActive = false;
+  CalendarViewType _currentCalendarView = CalendarViewType.day;
+  DateTime _selectedDate = DateTime.now();
 
   // Token-efficient task changelog per project (stores compact summary instead of full JSON)
   // Format: "v1: Created 5 tasks (2 high, 2 med, 1 low) | v2: Adjusted due dates | v3: Added 2 tasks"
@@ -36,6 +46,11 @@ class DayCrafterProvider with ChangeNotifier {
   String? get activeProjectId => _activeProjectId;
   bool get isLoading => _isLoading;
 
+  // Calendar getters
+  bool get isCalendarActive => _isCalendarActive;
+  CalendarViewType get currentCalendarView => _currentCalendarView;
+  DateTime get selectedDate => _selectedDate;
+
   Project? get activeProject {
     if (_activeProjectId == null) return null;
     return _projects.firstWhere(
@@ -49,6 +64,9 @@ class DayCrafterProvider with ChangeNotifier {
   }
 
   Future<void> _loadInitialData() async {
+    // Wipe data on startup as requested
+    ObjectBoxService.instance.clearAllData();
+
     final prefs = await SharedPreferences.getInstance();
     _userName = prefs.getString('daycrafter_user_name');
     final projectsJson = prefs.getString('daycrafter_projects');
@@ -132,7 +150,156 @@ class DayCrafterProvider with ChangeNotifier {
 
   void setActiveProject(String? id) {
     _activeProjectId = id;
+    _isCalendarActive = false; // Switch to agent view when selecting project
     notifyListeners();
+  }
+
+  // Calendar methods
+  void setCalendarActive(bool active) {
+    _isCalendarActive = active;
+    notifyListeners();
+  }
+
+  void setCalendarView(CalendarViewType view) {
+    _currentCalendarView = view;
+    notifyListeners();
+  }
+
+  void setSelectedDate(DateTime date) {
+    _selectedDate = date;
+    notifyListeners();
+  }
+
+  void navigateToToday() {
+    _selectedDate = DateTime.now();
+    notifyListeners();
+  }
+
+  void navigatePrevious() {
+    switch (_currentCalendarView) {
+      case CalendarViewType.day:
+        _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+        break;
+      case CalendarViewType.week:
+        _selectedDate = _selectedDate.subtract(const Duration(days: 7));
+        break;
+      case CalendarViewType.month:
+        _selectedDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month - 1,
+          1,
+        );
+        break;
+    }
+    notifyListeners();
+  }
+
+  void navigateNext() {
+    switch (_currentCalendarView) {
+      case CalendarViewType.day:
+        _selectedDate = _selectedDate.add(const Duration(days: 1));
+        break;
+      case CalendarViewType.week:
+        _selectedDate = _selectedDate.add(const Duration(days: 7));
+        break;
+      case CalendarViewType.month:
+        _selectedDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month + 1,
+          1,
+        );
+        break;
+    }
+    notifyListeners();
+  }
+
+  // ============= Calendar Task Methods =============
+
+  /// Save tasks to calendar database
+  Future<void> saveTasksToCalendar(
+    List<Map<String, dynamic>> tasks, {
+    String? projectId,
+    String? messageId,
+  }) async {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) {
+      debugPrint('⚠️ ObjectBox not initialized, cannot save tasks');
+      return;
+    }
+
+    try {
+      final random = math.Random();
+      final entities = <CalendarTaskEntity>[];
+
+      for (final task in tasks) {
+        // Ensure task has an ID
+        if (task['id'] == null) {
+          final timestamp = DateTime.now().millisecondsSinceEpoch;
+          final randomSuffix = random.nextInt(100000).toString();
+          task['id'] = '$timestamp$randomSuffix';
+        }
+
+        // Use expanded to get ALL daily instances
+        final taskInstances = CalendarTaskEntity.fromTaskMapExpanded(
+          task,
+          projectId: projectId ?? _activeProjectId,
+          messageId: messageId,
+        );
+        entities.addAll(taskInstances);
+      }
+
+      db.saveCalendarTasks(entities);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error saving tasks to calendar: $e');
+    }
+  }
+
+  /// Get tasks for a specific date
+  List<Map<String, dynamic>> getTasksForDate(DateTime date) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) {
+      debugPrint('⚠️ DB not initialized for getTasksForDate');
+      return [];
+    }
+
+    try {
+      final entities = db.getTasksForDate(date);
+      return entities.map((e) => e.toTaskMap()).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting tasks for date: $e');
+      return [];
+    }
+  }
+
+  /// Get tasks for a date range
+  List<Map<String, dynamic>> getTasksForDateRange(
+    DateTime start,
+    DateTime end,
+  ) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return [];
+
+    try {
+      final entities = db.getTasksForDateRange(start, end);
+      return entities.map((e) => e.toTaskMap()).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting tasks for date range: $e');
+      return [];
+    }
+  }
+
+  /// Toggle task completion
+  void toggleTaskCompletion(String taskId) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return;
+
+    try {
+      db.toggleTaskCompletion(taskId);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error toggling task completion: $e');
+    }
   }
 
   Future<void> sendMessage(String text, MessageRole role) async {
@@ -215,8 +382,9 @@ I have created the following tasks for this request:
 $tasksJson
 
 Please provide a brief, helpful summary of what did the result 
-changes compare to previous version, and also provide some suggestions for the next steps, 
-or tell the user what to look first in these task.''';
+If this state is not initial state, then provide changes compare to previous version, and also provide some suggestions for the next steps, 
+or tell the user what to look first in these task.
+Do not provide anyother information. Just task summary, changes and next steps.''';
       }
 
       // Get token-efficient changelog instead of full JSON history
@@ -455,6 +623,9 @@ or tell the user what to look first in these task.''';
     _taskChangelogs.remove(projectId);
     await _saveChangelogs();
 
+    // CRM-style cascade delete: removes tasks from calendar DB
+    ObjectBoxService.instance.deleteCalendarTasksForProject(projectId);
+
     // Switch to another project if deleted the active one
     if (_activeProjectId == projectId) {
       _activeProjectId = _projects.isNotEmpty ? _projects.first.id : null;
@@ -642,6 +813,33 @@ or tell the user what to look first in these task.''';
           .toList();
     } catch (e) {
       debugPrint('Semantic search error: $e');
+      return [];
+    }
+  }
+
+  /// Search calendar tasks by text with optional date range filter
+  /// Returns matching tasks as maps
+  List<Map<String, dynamic>> searchTasks(
+    String query, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    try {
+      final dbService = ObjectBoxService.instance;
+
+      if (!dbService.isInitialized) {
+        return [];
+      }
+
+      final results = dbService.searchTasksByText(
+        query,
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      return results.map((e) => e.toTaskMap()).toList();
+    } catch (e) {
+      debugPrint('Task search error: $e');
       return [];
     }
   }

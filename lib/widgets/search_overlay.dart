@@ -29,9 +29,15 @@ class _SearchOverlayState extends State<SearchOverlay>
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
-  List<Message> _results = [];
+  List<Message> _messageResults = [];
+  List<Map<String, dynamic>> _taskResults = [];
   bool _isSearching = false;
   bool _hasSearched = false;
+
+  // Date filter state
+  String _selectedDateFilter = 'all'; // 'today', 'week', 'month', 'all'
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -69,10 +75,42 @@ class _SearchOverlayState extends State<SearchOverlay>
     super.dispose();
   }
 
+  void _setDateFilter(String filter) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    setState(() {
+      _selectedDateFilter = filter;
+      switch (filter) {
+        case 'today':
+          _startDate = today;
+          _endDate = today;
+          break;
+        case 'week':
+          _startDate = today.subtract(Duration(days: today.weekday - 1));
+          _endDate = _startDate!.add(const Duration(days: 6));
+          break;
+        case 'month':
+          _startDate = DateTime(today.year, today.month, 1);
+          _endDate = DateTime(today.year, today.month + 1, 0);
+          break;
+        default:
+          _startDate = null;
+          _endDate = null;
+      }
+    });
+
+    // Re-run search if there's a query
+    if (_searchController.text.isNotEmpty) {
+      _performSearch(_searchController.text);
+    }
+  }
+
   Future<void> _performSearch(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
-        _results = [];
+        _messageResults = [];
+        _taskResults = [];
         _hasSearched = false;
       });
       return;
@@ -85,18 +123,29 @@ class _SearchOverlayState extends State<SearchOverlay>
 
     try {
       final provider = context.read<DayCrafterProvider>();
-      final results = await provider.semanticSearch(query);
+
+      // Search messages (semantic search)
+      final messageResults = await provider.semanticSearch(query);
+
+      // Search tasks (text search with date filter)
+      final taskResults = provider.searchTasks(
+        query,
+        startDate: _startDate,
+        endDate: _endDate,
+      );
 
       if (mounted) {
         setState(() {
-          _results = results;
+          _messageResults = messageResults;
+          _taskResults = taskResults;
           _isSearching = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _results = [];
+          _messageResults = [];
+          _taskResults = [];
           _isSearching = false;
         });
       }
@@ -275,12 +324,12 @@ class _SearchOverlayState extends State<SearchOverlay>
     }
 
     // No results
-    if (_results.isEmpty) {
+    if (_messageResults.isEmpty && _taskResults.isEmpty) {
       return _buildNoResultsState();
     }
 
-    // Results list
-    return _buildResultsList();
+    // Results list (combined)
+    return _buildCombinedResultsList();
   }
 
   Widget _buildLoadingState() {
@@ -392,21 +441,205 @@ class _SearchOverlayState extends State<SearchOverlay>
     );
   }
 
-  Widget _buildResultsList() {
-    return ListView.separated(
+  Widget _buildCombinedResultsList() {
+    return ListView(
       shrinkWrap: true,
-      itemCount: _results.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final message = _results[index];
-        return _SearchResultCard(
-          message: message,
-          onTap: () {
-            // TODO: Navigate to the message
-            _closeOverlay();
-          },
-        );
-      },
+      children: [
+        // Date filter chips
+        _buildDateFilterChips(),
+        const SizedBox(height: 12),
+
+        // Task results section
+        if (_taskResults.isNotEmpty) ...[
+          _buildSectionHeader('Tasks', _taskResults.length),
+          const SizedBox(height: 8),
+          ...List.generate(_taskResults.length, (index) {
+            final task = _taskResults[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildTaskResultCard(task),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+
+        // Message results section
+        if (_messageResults.isNotEmpty) ...[
+          _buildSectionHeader('Messages', _messageResults.length),
+          const SizedBox(height: 8),
+          ...List.generate(_messageResults.length, (index) {
+            final message = _messageResults[index];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _SearchResultCard(
+                message: message,
+                onTap: () => _closeOverlay(),
+              ),
+            );
+          }),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDateFilterChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _DateFilterChip(
+          label: 'All Time',
+          isSelected: _selectedDateFilter == 'all',
+          onTap: () => _setDateFilter('all'),
+        ),
+        _DateFilterChip(
+          label: 'Today',
+          isSelected: _selectedDateFilter == 'today',
+          onTap: () => _setDateFilter('today'),
+        ),
+        _DateFilterChip(
+          label: 'This Week',
+          isSelected: _selectedDateFilter == 'week',
+          onTap: () => _setDateFilter('week'),
+        ),
+        _DateFilterChip(
+          label: 'This Month',
+          isSelected: _selectedDateFilter == 'month',
+          onTap: () => _setDateFilter('month'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, int count) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppStyles.mTextSecondary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: AppStyles.mPrimary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppStyles.mPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTaskResultCard(Map<String, dynamic> task) {
+    final priority = task['priority'] is int
+        ? task['priority']
+        : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
+    final priorityColor = AppStyles.getPriorityColor(priority);
+    final isCompleted = task['isCompleted'] == true;
+
+    return Material(
+      color: AppStyles.mBackground.withValues(alpha: 0.4),
+      borderRadius: AppStyles.bRadiusSmall,
+      child: InkWell(
+        onTap: _closeOverlay,
+        borderRadius: AppStyles.bRadiusSmall,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Priority indicator
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: priorityColor.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  LucideIcons.checkSquare,
+                  size: 16,
+                  color: priorityColor,
+                ),
+              ),
+              const SizedBox(width: 12),
+              // Content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task['task']?.toString() ?? 'Untitled Task',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppStyles.mTextPrimary,
+                        decoration: isCompleted
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          LucideIcons.calendar,
+                          size: 12,
+                          color: AppStyles.mTextSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          task['dateOnCalendar']?.toString() ?? '-',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppStyles.mTextSecondary,
+                          ),
+                        ),
+                        if (task['start_time'] != null) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            LucideIcons.clock,
+                            size: 12,
+                            color: AppStyles.mTextSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${task['start_time']} - ${task['end_time'] ?? ''}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppStyles.mTextSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              // Arrow
+              Icon(
+                LucideIcons.chevronRight,
+                size: 16,
+                color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -593,5 +826,43 @@ class _SearchResultCard extends StatelessWidget {
     } else {
       return '${date.month}/${date.day}/${date.year}';
     }
+  }
+}
+
+/// Date filter chip for search
+class _DateFilterChip extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _DateFilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected
+          ? AppStyles.mPrimary.withValues(alpha: 0.2)
+          : AppStyles.mBackground.withValues(alpha: 0.5),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected ? AppStyles.mPrimary : AppStyles.mTextSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
