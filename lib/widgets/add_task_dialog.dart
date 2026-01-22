@@ -256,7 +256,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           const SizedBox(width: 14),
           Text(
             isEditing ? 'Edit Task' : 'Add New Task',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppStyles.mTextPrimary,
@@ -337,7 +337,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
             const SizedBox(width: 12),
             Text(
               '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 color: AppStyles.mTextPrimary,
               ),
@@ -506,7 +506,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         children: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           const SizedBox(width: 12),
           ElevatedButton.icon(

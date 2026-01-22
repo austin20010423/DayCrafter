@@ -38,14 +38,14 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Project'),
+        title: Text('Delete Project'),
         content: Text(
           'Are you sure you want to delete "$projectName"? This action cannot be undone.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
@@ -53,7 +53,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
               Navigator.pop(context);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text('Delete'),
           ),
         ],
       ),
@@ -149,7 +149,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       Expanded(
                         child: Text(
                           'DayCrafter',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -229,7 +229,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Row(
                     children: [
-                      const Text(
+                      Text(
                         'Project',
                         style: TextStyle(
                           color: Colors.white,
@@ -324,7 +324,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                             provider.userName?.isNotEmpty == true
                                 ? provider.userName![0].toUpperCase()
                                 : 'U',
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
@@ -340,7 +340,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                               provider.userName?.isNotEmpty == true
                                   ? provider.userName![0].toUpperCase()
                                   : 'U',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -353,7 +353,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                               children: [
                                 Text(
                                   provider.userName ?? 'User',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 15,
@@ -517,7 +517,7 @@ class _ProjectItemState extends State<_ProjectItem> {
             ),
             child: Center(
               child: widget.emoji != null && widget.emoji!.isNotEmpty
-                  ? Text(widget.emoji!, style: const TextStyle(fontSize: 22))
+                  ? Text(widget.emoji!, style: TextStyle(fontSize: 22))
                   : Stack(
                       children: [
                         Icon(
@@ -589,7 +589,7 @@ class _ProjectItemState extends State<_ProjectItem> {
             children: [
               // Show emoji or folder icon
               widget.emoji != null && widget.emoji!.isNotEmpty
-                  ? Text(widget.emoji!, style: const TextStyle(fontSize: 20))
+                  ? Text(widget.emoji!, style: TextStyle(fontSize: 20))
                   : Icon(
                       LucideIcons.folder,
                       size: 20,

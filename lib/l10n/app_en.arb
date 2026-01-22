@@ -1,0 +1,141 @@
+{
+  "@@locale": "en",
+  
+  "appTitle": "DayCrafter",
+  "@appTitle": {"description": "The application title"},
+  
+  "settings": "Settings",
+  "@settings": {"description": "Settings title"},
+  
+  "appearance": "Appearance",
+  "@appearance": {"description": "Appearance section title"},
+  
+  "language": "Language",
+  "@language": {"description": "Language section title"},
+  
+  "lightMode": "Light",
+  "@lightMode": {"description": "Light theme option"},
+  
+  "darkMode": "Dark",
+  "@darkMode": {"description": "Dark theme option"},
+  
+  "english": "English",
+  "@english": {"description": "English language option"},
+  
+  "chinese": "中文",
+  "@chinese": {"description": "Chinese language option"},
+  
+  "done": "Done",
+  "@done": {"description": "Done button text"},
+  
+  "cancel": "Cancel",
+  "@cancel": {"description": "Cancel button text"},
+  
+  "addTask": "Add Task",
+  "@addTask": {"description": "Add task button"},
+  
+  "editTask": "Edit Task",
+  "@editTask": {"description": "Edit task title"},
+  
+  "taskName": "Task Name",
+  "@taskName": {"description": "Task name field label"},
+  
+  "description": "Description",
+  "@description": {"description": "Description field label"},
+  
+  "priority": "Priority",
+  "@priority": {"description": "Priority label"},
+  
+  "date": "Date",
+  "@date": {"description": "Date label"},
+  
+  "time": "Time",
+  "@time": {"description": "Time label"},
+  
+  "startTime": "Start",
+  "@startTime": {"description": "Start time label"},
+  
+  "endTime": "End",
+  "@endTime": {"description": "End time label"},
+  
+  "markComplete": "Complete",
+  "@markComplete": {"description": "Mark complete button"},
+  
+  "markIncomplete": "Incomplete",
+  "@markIncomplete": {"description": "Mark incomplete button"},
+  
+  "edit": "Edit",
+  "@edit": {"description": "Edit button"},
+  
+  "close": "Close",
+  "@close": {"description": "Close button"},
+  
+  "today": "Today",
+  "@today": {"description": "Today label"},
+  
+  "tomorrow": "Tomorrow",
+  "@tomorrow": {"description": "Tomorrow label"},
+  
+  "noTasks": "No tasks",
+  "@noTasks": {"description": "No tasks message"},
+  
+  "workspaces": "Workspaces",
+  "@workspaces": {"description": "Workspaces label"},
+  
+  "search": "Search",
+  "@search": {"description": "Search placeholder"},
+  
+  "notifications": "Notifications",
+  "@notifications": {"description": "Notifications tooltip"},
+  
+  "newProject": "New Project",
+  "@newProject": {"description": "New project button"},
+  
+  "deleteProject": "Delete Project",
+  "@deleteProject": {"description": "Delete project button"},
+  
+  "projectName": "Project Name",
+  "@projectName": {"description": "Project name field"},
+  
+  "calendar": "Calendar",
+  "@calendar": {"description": "Calendar button"},
+  
+  "day": "Day",
+  "@day": {"description": "Day view option"},
+  
+  "week": "Week",
+  "@week": {"description": "Week view option"},
+  
+  "month": "Month",
+  "@month": {"description": "Month view option"},
+  
+  "highPriority": "High Priority",
+  "@highPriority": {"description": "High priority label"},
+  
+  "mediumPriority": "Medium Priority",
+  "@mediumPriority": {"description": "Medium priority label"},
+  
+  "lowPriority": "Low Priority",
+  "@lowPriority": {"description": "Low priority label"},
+  
+  "dueDate": "Due Date",
+  "@dueDate": {"description": "Due date label"},
+  
+  "estimatedTime": "Estimated Time",
+  "@estimatedTime": {"description": "Estimated time label"},
+  
+  "minutes": "minutes",
+  "@minutes": {"description": "Minutes unit"},
+  
+  "enterTaskName": "Enter task name...",
+  "@enterTaskName": {"description": "Task name placeholder"},
+  
+  "addDetails": "Add details...",
+  "@addDetails": {"description": "Description placeholder"},
+  
+  "pleaseEnterTaskName": "Please enter a task name",
+  "@pleaseEnterTaskName": {"description": "Validation message"},
+  
+  "saveChanges": "Save Changes",
+  "@saveChanges": {"description": "Save changes button"}
+}

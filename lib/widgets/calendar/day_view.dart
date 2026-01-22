@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../provider.dart';
 import '../../styles.dart';
-import '../dot_grid_background.dart';
 import '../task_detail_dialog.dart';
 import '../add_task_dialog.dart';
 
@@ -146,7 +145,7 @@ class DayView extends StatelessWidget {
                     const SizedBox(width: 12),
                     Text(
                       monthYear,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                         color: AppStyles.mTextPrimary,
@@ -169,7 +168,7 @@ class DayView extends StatelessWidget {
                 // Second row: Large date number - centered, no background
                 Text(
                   dayNum,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 80,
                     fontWeight: FontWeight.bold,
                     color: AppStyles.mPrimary,
@@ -235,7 +234,7 @@ class DayView extends StatelessWidget {
               children: [
                 Icon(LucideIcons.listTodo, size: 16, color: AppStyles.mPrimary),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'Tasks',
                   style: TextStyle(
                     fontSize: 14,
@@ -347,7 +346,7 @@ class DayView extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF9F9F9), // Paper-like off-white
+        color: AppStyles.mSurface,
         borderRadius: AppStyles.bRadiusMedium,
         boxShadow: [
           BoxShadow(
@@ -365,68 +364,67 @@ class DayView extends StatelessWidget {
             height: totalHeight,
             child: Stack(
               children: [
-                // 1. Time Column & Grid Background
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Time Column
-                    Container(
-                      width: 60,
-                      decoration: const BoxDecoration(
+                // 1. Grid Lines and Time Labels (matching week view style)
+                Column(
+                  children: hours.map((hour) {
+                    final timeLabel = hour < 12
+                        ? '${hour == 0 ? 12 : hour} AM'
+                        : '${hour == 12 ? 12 : hour - 12} PM';
+
+                    return Container(
+                      height: hourHeight,
+                      decoration: BoxDecoration(
                         border: Border(
-                          right: BorderSide(
-                            color: Color(0xFFE0E0E0),
-                            width: 1.5,
+                          bottom: BorderSide(
+                            color: AppStyles.mTextSecondary.withValues(
+                              alpha: 0.1,
+                            ),
+                            width: 1,
                           ),
                         ),
                       ),
-                      child: Column(
-                        children: hours.map((hour) {
-                          final timeLabel =
-                              '${hour > 12 ? hour - 12 : hour}:00';
-                          return SizedBox(
-                            height: hourHeight,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Time Label
+                          SizedBox(
+                            width: 50,
                             child: Padding(
                               padding: const EdgeInsets.only(top: 8, right: 8),
                               child: Text(
                                 timeLabel,
-                                style: const TextStyle(
-                                  fontFamily: 'Courier',
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF555555),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppStyles.mTextSecondary,
                                 ),
                                 textAlign: TextAlign.right,
                               ),
                             ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-
-                    // Dot Grid Task Area Background
-                    Expanded(
-                      child: DotGridBackground(
-                        child: Column(
-                          children: List.generate(hours.length, (index) {
-                            return Container(
-                              height: hourHeight,
-                              decoration: const BoxDecoration(
+                          ),
+                          // Expanded area for tasks
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
                                 border: Border(
-                                  bottom: BorderSide(color: Colors.transparent),
+                                  left: BorderSide(
+                                    color: AppStyles.mTextSecondary.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    width: 1,
+                                  ),
                                 ),
                               ),
-                            );
-                          }),
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
 
                 // 2. Positioned Tasks
                 Positioned.fill(
-                  left: 60, // Offset by time column width
+                  left: 50, // Offset by time column width
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final taskWidgets = <Widget>[];
@@ -589,7 +587,7 @@ class DayView extends StatelessWidget {
         headerStyle: HeaderStyle(
           formatButtonVisible: false,
           titleCentered: true,
-          titleTextStyle: const TextStyle(
+          titleTextStyle: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppStyles.mTextPrimary,
@@ -614,11 +612,11 @@ class DayView extends StatelessWidget {
             color: AppStyles.mPrimary,
             shape: BoxShape.circle,
           ),
-          defaultTextStyle: const TextStyle(
+          defaultTextStyle: TextStyle(
             fontSize: 12,
             color: AppStyles.mTextPrimary,
           ),
-          weekendTextStyle: const TextStyle(
+          weekendTextStyle: TextStyle(
             fontSize: 12,
             color: AppStyles.mTextSecondary,
           ),
@@ -670,7 +668,7 @@ class DayView extends StatelessWidget {
             children: [
               Icon(LucideIcons.sparkles, size: 18, color: AppStyles.mAccent),
               const SizedBox(width: 8),
-              const Text(
+              Text(
                 'AI Summary',
                 style: TextStyle(
                   fontSize: 14,
@@ -724,7 +722,7 @@ class DayView extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Tasks (${tasks.length})',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppStyles.mTextPrimary,

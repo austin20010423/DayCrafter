@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'provider.dart';
@@ -61,22 +63,28 @@ class DayCrafterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<DayCrafterProvider>();
+
+    // Apply theme to styles
+    AppStyles.setDarkMode(provider.isDarkMode);
+
     return MaterialApp(
       title: 'DayCrafter',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppStyles.mPrimary,
-          surface: AppStyles.mSurface,
-        ),
-        useMaterial3: true,
-        fontFamily: 'Inter',
-        scaffoldBackgroundColor: AppStyles.mBackground,
-        dialogTheme: DialogThemeData(
-          shape: RoundedRectangleBorder(borderRadius: AppStyles.bRadiusLarge),
-          backgroundColor: AppStyles.mSurface,
-        ),
-      ),
+
+      // Localization
+      locale: provider.flutterLocale,
+      localizationsDelegates: [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('en', 'US'), Locale('zh', 'TW')],
+
+      // Theme
+      theme: AppStyles.getThemeData(),
+
       home: const MainNavigator(),
     );
   }
@@ -178,29 +186,29 @@ class _MainLayoutState extends State<MainLayout> {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: const Color(0xFFEEF2FF),
+                color: AppStyles.mPrimary.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.dashboard_outlined,
                 size: 32,
-                color: Color(0xFF4F46E5),
+                color: AppStyles.mPrimary,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'Welcome back, ${provider.userName}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
+                color: AppStyles.mTextPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Select a project from the sidebar to manage your plans, tasks, and research.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 16),
+              style: TextStyle(color: AppStyles.mTextSecondary, fontSize: 16),
             ),
             const SizedBox(height: 32),
             OutlinedButton(
@@ -213,11 +221,12 @@ class _MainLayoutState extends State<MainLayout> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
+                side: BorderSide(color: AppStyles.mPrimary),
               ),
-              child: const Text(
+              child: Text(
                 '+ Create New Project',
                 style: TextStyle(
-                  color: Color(0xFF475569),
+                  color: AppStyles.mPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),

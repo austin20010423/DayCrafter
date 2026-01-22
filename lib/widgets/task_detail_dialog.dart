@@ -313,7 +313,7 @@ class TaskDetailDialog extends StatelessWidget {
               AddTaskDialog.edit(context, task);
             },
             icon: const Icon(LucideIcons.edit, size: 16),
-            label: const Text('Edit'),
+            label: Text('Edit'),
             style: TextButton.styleFrom(foregroundColor: AppStyles.mPrimary),
           ),
           Row(
@@ -354,7 +354,7 @@ class TaskDetailDialog extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('Close'),
+                child: Text('Close'),
               ),
             ],
           ),

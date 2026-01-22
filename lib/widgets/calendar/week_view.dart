@@ -73,7 +73,7 @@ class WeekView extends StatelessWidget {
         children: [
           Text(
             '$monthYear  $dateRange',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppStyles.mTextPrimary,
@@ -681,7 +681,7 @@ class _TaskListCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '$title (${tasks.length})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppStyles.mTextPrimary,

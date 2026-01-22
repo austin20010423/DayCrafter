@@ -100,7 +100,7 @@ class SettingsDialog extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          const Text(
+          Text(
             'Settings / 設定',
             style: TextStyle(
               fontSize: 18,
@@ -191,7 +191,7 @@ class SettingsDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text('Done / 完成'),
+            child: Text('Done / 完成'),
           ),
         ],
       ),
@@ -298,7 +298,7 @@ class _LanguageOption extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(flag, style: const TextStyle(fontSize: 24)),
+              Text(flag, style: TextStyle(fontSize: 24)),
               const SizedBox(width: 10),
               Text(
                 label,

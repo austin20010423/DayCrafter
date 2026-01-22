@@ -1,20 +1,76 @@
 import 'package:flutter/material.dart';
 
-class AppStyles {
-  // Morandi Palette
-  static const Color mBackground = Color(0xFFE5E2DA); // Pale Sand
-  static const Color mSurface = Color(0xFFF2F0E9); // Lighter Sand
-  static const Color mPrimary = Color(0xFF7A8D9A); // Deep Muted Blue
-  static const Color mSecondary = Color(0xFFACB8A8); // Sage Green
-  static const Color mAccent = Color(0xFFD6BDBC); // Dusty Rose
-  static const Color mTextPrimary = Color(0xFF5A6268); // Dark Grey Muted
-  static const Color mTextSecondary = Color(0xFF8E979F); // Muted Slate
-  static const Color mSidebarBg = Color(0xFF4A555C); // Deep Muted Slate
+/// Theme data for dark Morandi palette
+class DarkMorandiTheme {
+  static const Color background = Color(0xFF2C3135); // Deep Charcoal
+  static const Color surface = Color(0xFF373D42); // Muted Slate
+  static const Color primary = Color(0xFF8FA3B0); // Soft Blue-Grey
+  static const Color secondary = Color(
+    0xFF9FB5A3,
+  ); // Sage Green (lighter for dark)
+  static const Color accent = Color(0xFFD9BCBB); // Dusty Rose
+  static const Color textPrimary = Color(0xFFE5E2DA); // Pale Sand (inverted)
+  static const Color textSecondary = Color(0xFF9BA3AB); // Soft Slate
+  static const Color sidebarBg = Color(0xFF232729); // Very Dark Slate
+}
 
-  // Priority Colors (higher priority = brighter)
+/// Theme data for light Morandi palette
+class LightMorandiTheme {
+  static const Color background = Color(0xFFE5E2DA); // Pale Sand
+  static const Color surface = Color(0xFFF2F0E9); // Lighter Sand
+  static const Color primary = Color(0xFF7A8D9A); // Deep Muted Blue
+  static const Color secondary = Color(0xFFACB8A8); // Sage Green
+  static const Color accent = Color(0xFFD6BDBC); // Dusty Rose
+  static const Color textPrimary = Color(0xFF5A6268); // Dark Grey Muted
+  static const Color textSecondary = Color(0xFF8E979F); // Muted Slate
+  static const Color sidebarBg = Color(0xFF4A555C); // Deep Muted Slate
+}
+
+/// App-wide styles that respond to theme changes
+class AppStyles {
+  static bool _isDarkMode = false;
+
+  /// Set the current theme mode
+  static void setDarkMode(bool isDark) {
+    _isDarkMode = isDark;
+  }
+
+  /// Check current theme mode
+  static bool get isDarkMode => _isDarkMode;
+
+  // Dynamic Morandi Palette colors
+  static Color get mBackground =>
+      _isDarkMode ? DarkMorandiTheme.background : LightMorandiTheme.background;
+
+  static Color get mSurface =>
+      _isDarkMode ? DarkMorandiTheme.surface : LightMorandiTheme.surface;
+
+  static Color get mPrimary =>
+      _isDarkMode ? DarkMorandiTheme.primary : LightMorandiTheme.primary;
+
+  static Color get mSecondary =>
+      _isDarkMode ? DarkMorandiTheme.secondary : LightMorandiTheme.secondary;
+
+  static Color get mAccent =>
+      _isDarkMode ? DarkMorandiTheme.accent : LightMorandiTheme.accent;
+
+  static Color get mTextPrimary => _isDarkMode
+      ? DarkMorandiTheme.textPrimary
+      : LightMorandiTheme.textPrimary;
+
+  static Color get mTextSecondary => _isDarkMode
+      ? DarkMorandiTheme.textSecondary
+      : LightMorandiTheme.textSecondary;
+
+  static Color get mSidebarBg =>
+      _isDarkMode ? DarkMorandiTheme.sidebarBg : LightMorandiTheme.sidebarBg;
+
+  // Priority Colors (same for both themes)
   static const Color priorityHigh = Color(0xFFFF6B6B); // Bright Coral
   static const Color priorityMedium = Color(0xFFFFA94D); // Bright Orange
-  static const Color priorityLow = Color(0xFFC5CCD3); // Muted Gray
+  static Color get priorityLow => _isDarkMode
+      ? const Color(0xFF6B7580) // Darker muted gray for dark theme
+      : const Color(0xFFC5CCD3); // Muted Gray for light theme
 
   /// Returns background color based on priority level
   /// Priority 1 = High (brightest), 2 = Medium, 3+ = Low (muted)
@@ -40,6 +96,34 @@ class AppStyles {
   static BorderRadius get bRadiusSmall => BorderRadius.circular(radiusSmall);
   static BorderRadius get bRadiusMedium => BorderRadius.circular(radiusMedium);
   static BorderRadius get bRadiusLarge => BorderRadius.circular(radiusLarge);
+
+  /// Get Flutter ThemeData for MaterialApp
+  static ThemeData getThemeData() {
+    return ThemeData(
+      brightness: _isDarkMode ? Brightness.dark : Brightness.light,
+      scaffoldBackgroundColor: mBackground,
+      primaryColor: mPrimary,
+      colorScheme: ColorScheme(
+        brightness: _isDarkMode ? Brightness.dark : Brightness.light,
+        primary: mPrimary,
+        onPrimary: _isDarkMode ? Colors.black : Colors.white,
+        secondary: mSecondary,
+        onSecondary: _isDarkMode ? Colors.black : Colors.white,
+        error: priorityHigh,
+        onError: Colors.white,
+        surface: mSurface,
+        onSurface: mTextPrimary,
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: mSurface,
+        foregroundColor: mTextPrimary,
+        elevation: 0,
+      ),
+      cardColor: mSurface,
+      dialogBackgroundColor: mSurface,
+      dividerColor: mBackground,
+    );
+  }
 }
 
 class GridDotPainter extends CustomPainter {

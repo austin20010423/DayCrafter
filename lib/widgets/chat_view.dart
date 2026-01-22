@@ -266,7 +266,7 @@ class _ChatViewState extends State<ChatView> {
                   borderRadius: AppStyles.bRadiusMedium,
                 ),
               ),
-              child: const Text('Cancel'),
+              child: Text('Cancel'),
             ),
             const SizedBox(height: 48),
             Container(
@@ -962,7 +962,7 @@ class _ChatViewState extends State<ChatView> {
                     }
                   },
                   icon: Icon(LucideIcons.checkCircle, size: 18),
-                  label: const Text('Done - Add to Calendar'),
+                  label: Text('Done - Add to Calendar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppStyles.mAccent,
                     foregroundColor: Colors.white,

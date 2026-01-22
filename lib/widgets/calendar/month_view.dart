@@ -67,7 +67,7 @@ class MonthView extends StatelessWidget {
         children: [
           Text(
             monthYear,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
               color: AppStyles.mTextPrimary,
