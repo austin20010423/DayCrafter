@@ -172,6 +172,9 @@ class CalendarTaskEntity {
   /// Whether the task is completed
   bool isCompleted;
 
+  /// Whether the task was manually scheduled (keeps its time during re-scheduling)
+  bool isManuallyScheduled;
+
   /// Created timestamp
   @Property(type: PropertyType.date)
   DateTime createdAt;
@@ -192,6 +195,7 @@ class CalendarTaskEntity {
     this.projectId,
     this.messageId,
     this.isCompleted = false,
+    this.isManuallyScheduled = false,
     required this.createdAt,
   });
 
@@ -316,6 +320,7 @@ class CalendarTaskEntity {
       'TimeToComplete': timeToComplete,
       'links': links,
       'isCompleted': isCompleted,
+      'isManuallyScheduled': isManuallyScheduled,
       'projectId': projectId,
     };
   }

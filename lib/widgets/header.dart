@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../styles.dart';
 import 'search_overlay.dart';
+import 'settings_dialog.dart';
 
 class Header extends StatelessWidget {
   final String? activeProjectName;
@@ -10,6 +11,10 @@ class Header extends StatelessWidget {
 
   void _openSearch(BuildContext context) {
     SearchOverlay.show(context);
+  }
+
+  void _openSettings(BuildContext context) {
+    SettingsDialog.show(context);
   }
 
   @override
@@ -63,7 +68,7 @@ class Header extends StatelessWidget {
               const SizedBox(width: 20),
               _HeaderIconButton(
                 icon: LucideIcons.settings,
-                onPressed: () {},
+                onPressed: () => _openSettings(context),
                 tooltip: 'Settings',
               ),
             ],

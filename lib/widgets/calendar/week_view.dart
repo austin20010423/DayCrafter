@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../provider.dart';
 import '../../styles.dart';
+import '../task_detail_dialog.dart';
 
 /// Week View - Shows 7-day columns with hourly time slots
 class WeekView extends StatelessWidget {
@@ -360,12 +361,8 @@ class WeekView extends StatelessWidget {
                                       ? height
                                       : 20, // Min height
                                   child: GestureDetector(
-                                    onTap: () {
-                                      final taskId = task['id']?.toString();
-                                      if (taskId != null) {
-                                        provider.toggleTaskCompletion(taskId);
-                                      }
-                                    },
+                                    onTap: () =>
+                                        TaskDetailDialog.show(context, task),
                                     child: ClipRRect(
                                       borderRadius: BorderRadius.circular(4),
                                       child: Container(
@@ -722,12 +719,7 @@ class _TaskListCard extends StatelessWidget {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: InkWell(
-                          onTap: () {
-                            final taskId = task['id']?.toString();
-                            if (taskId != null) {
-                              provider.toggleTaskCompletion(taskId);
-                            }
-                          },
+                          onTap: () => TaskDetailDialog.show(context, task),
                           borderRadius: AppStyles.bRadiusSmall,
                           child: Container(
                             padding: const EdgeInsets.symmetric(

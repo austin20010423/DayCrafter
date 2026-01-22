@@ -11,9 +11,16 @@ import 'models.dart';
 import 'database/objectbox_service.dart';
 import 'database/objectbox_entities.dart';
 import 'services/embedding_service.dart';
+import 'services/task_scheduler.dart';
 
 /// Calendar view types
 enum CalendarViewType { day, week, month }
+
+/// Theme modes
+enum AppThemeMode { light, dark, system }
+
+/// Supported locales
+enum AppLocale { english, chinese }
 
 class DayCrafterProvider with ChangeNotifier {
   String? _userName;
@@ -25,6 +32,10 @@ class DayCrafterProvider with ChangeNotifier {
   bool _isCalendarActive = false;
   CalendarViewType _currentCalendarView = CalendarViewType.day;
   DateTime _selectedDate = DateTime.now();
+
+  // Theme and localization state
+  AppThemeMode _themeMode = AppThemeMode.light;
+  AppLocale _locale = AppLocale.english;
 
   // Token-efficient task changelog per project (stores compact summary instead of full JSON)
   // Format: "v1: Created 5 tasks (2 high, 2 med, 1 low) | v2: Adjusted due dates | v3: Added 2 tasks"
@@ -40,6 +51,59 @@ class DayCrafterProvider with ChangeNotifier {
     '#C77DFF', // Purple
     '#FF6FB5', // Pink
   ];
+
+  // Theme and locale getters
+  AppThemeMode get themeMode => _themeMode;
+  AppLocale get locale => _locale;
+  bool get isDarkMode => _themeMode == AppThemeMode.dark;
+  Locale get flutterLocale => _locale == AppLocale.chinese
+      ? const Locale('zh', 'TW')
+      : const Locale('en', 'US');
+
+  void setThemeMode(AppThemeMode mode) {
+    _themeMode = mode;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void setLocale(AppLocale locale) {
+    _locale = locale;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void toggleTheme() {
+    _themeMode = _themeMode == AppThemeMode.light
+        ? AppThemeMode.dark
+        : AppThemeMode.light;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  Future<void> _saveSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('theme_mode', _themeMode.name);
+    prefs.setString('locale', _locale.name);
+  }
+
+  Future<void> _loadSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final themeStr = prefs.getString('theme_mode');
+    final localeStr = prefs.getString('locale');
+
+    if (themeStr != null) {
+      _themeMode = AppThemeMode.values.firstWhere(
+        (e) => e.name == themeStr,
+        orElse: () => AppThemeMode.light,
+      );
+    }
+    if (localeStr != null) {
+      _locale = AppLocale.values.firstWhere(
+        (e) => e.name == localeStr,
+        orElse: () => AppLocale.english,
+      );
+    }
+  }
 
   String? get userName => _userName;
   List<Project> get projects => _projects;
@@ -94,6 +158,9 @@ class DayCrafterProvider with ChangeNotifier {
 
     // Load changelogs for token-efficient LLM context
     await _loadChangelogs();
+
+    // Load theme and locale settings
+    await _loadSettings();
 
     notifyListeners();
   }
@@ -229,7 +296,10 @@ class DayCrafterProvider with ChangeNotifier {
 
     try {
       final random = math.Random();
-      final entities = <CalendarTaskEntity>[];
+      final scheduler = TaskScheduler.instance;
+
+      // Group entities by date for scheduling
+      final entitiesByDate = <DateTime, List<CalendarTaskEntity>>{};
 
       for (final task in tasks) {
         // Ensure task has an ID
@@ -245,10 +315,29 @@ class DayCrafterProvider with ChangeNotifier {
           projectId: projectId ?? _activeProjectId,
           messageId: messageId,
         );
-        entities.addAll(taskInstances);
+
+        // Group by date
+        for (final entity in taskInstances) {
+          final dateKey = DateTime(
+            entity.calendarDate.year,
+            entity.calendarDate.month,
+            entity.calendarDate.day,
+          );
+          entitiesByDate.putIfAbsent(dateKey, () => []).add(entity);
+        }
       }
 
-      db.saveCalendarTasks(entities);
+      // Schedule tasks for each date
+      final allScheduledTasks = <CalendarTaskEntity>[];
+      for (final entry in entitiesByDate.entries) {
+        final scheduledTasks = scheduler.scheduleTasksForDate(
+          entry.key,
+          entry.value,
+        );
+        allScheduledTasks.addAll(scheduledTasks);
+      }
+
+      db.saveCalendarTasks(allScheduledTasks);
       notifyListeners();
     } catch (e) {
       debugPrint('❌ Error saving tasks to calendar: $e');
@@ -299,6 +388,75 @@ class DayCrafterProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('❌ Error toggling task completion: $e');
+    }
+  }
+
+  /// Add a manually created task
+  void addManualTask(Map<String, dynamic> taskData) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return;
+
+    try {
+      final entity = CalendarTaskEntity(
+        uuid:
+            taskData['id']?.toString() ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
+        taskName: taskData['task']?.toString() ?? 'Untitled',
+        description: taskData['Description']?.toString(),
+        calendarDate: _parseDate(taskData['dateOnCalendar']?.toString()),
+        startTime: taskData['start_time']?.toString(),
+        endTime: taskData['end_time']?.toString(),
+        priority: taskData['priority'] is int ? taskData['priority'] : 3,
+        isManuallyScheduled: taskData['isManuallyScheduled'] == true,
+        projectId: _activeProjectId,
+        createdAt: DateTime.now(),
+      );
+
+      db.saveCalendarTasks([entity]);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error adding manual task: $e');
+    }
+  }
+
+  /// Update an existing task
+  void updateTask(Map<String, dynamic> taskData) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return;
+
+    try {
+      final taskId = taskData['id']?.toString() ?? taskData['uuid']?.toString();
+      if (taskId == null) return;
+
+      final existing = db.getCalendarTaskByUuid(taskId);
+      if (existing == null) return;
+
+      // Update fields
+      existing.taskName = taskData['task']?.toString() ?? existing.taskName;
+      existing.description = taskData['Description']?.toString();
+      existing.calendarDate = _parseDate(
+        taskData['dateOnCalendar']?.toString(),
+      );
+      existing.startTime = taskData['start_time']?.toString();
+      existing.endTime = taskData['end_time']?.toString();
+      existing.priority = taskData['priority'] is int
+          ? taskData['priority']
+          : existing.priority;
+      existing.isManuallyScheduled = taskData['isManuallyScheduled'] == true;
+
+      db.saveCalendarTasks([existing]);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error updating task: $e');
+    }
+  }
+
+  DateTime _parseDate(String? dateStr) {
+    if (dateStr == null || dateStr.isEmpty) return DateTime.now();
+    try {
+      return DateTime.parse(dateStr);
+    } catch (_) {
+      return DateTime.now();
     }
   }
 
@@ -567,12 +725,13 @@ Do not provide anyother information. Just task summary, changes and next steps.'
       final p = task['priority'] is int
           ? task['priority']
           : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
-      if (p == 1)
+      if (p == 1) {
         high++;
-      else if (p == 2)
+      } else if (p == 2) {
         medium++;
-      else
+      } else {
         low++;
+      }
     }
 
     // Get existing changelog

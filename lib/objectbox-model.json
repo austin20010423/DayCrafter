@@ -102,7 +102,7 @@
     },
     {
       "id": "3:5489887417224204944",
-      "lastPropertyId": "16:3445624337483829038",
+      "lastPropertyId": "17:6025903371449862582",
       "name": "CalendarTaskEntity",
       "properties": [
         {
@@ -187,6 +187,11 @@
           "id": "16:3445624337483829038",
           "name": "endTime",
           "type": 9
+        },
+        {
+          "id": "17:6025903371449862582",
+          "name": "isManuallyScheduled",
+          "type": 1
         }
       ],
       "relations": []

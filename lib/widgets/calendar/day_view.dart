@@ -6,6 +6,8 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../provider.dart';
 import '../../styles.dart';
 import '../dot_grid_background.dart';
+import '../task_detail_dialog.dart';
+import '../add_task_dialog.dart';
 
 /// Day View - Default calendar view showing a single day with time slots
 class DayView extends StatelessWidget {
@@ -69,6 +71,17 @@ class DayView extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          // Add task button
+          IconButton(
+            onPressed: () =>
+                AddTaskDialog.show(context, initialDate: provider.selectedDate),
+            icon: const Icon(LucideIcons.plus, size: 20),
+            color: AppStyles.mPrimary,
+            tooltip: 'Add Task',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+          const SizedBox(width: 8),
           // View toggle and close buttons on the right
           _buildViewToggleCompact(provider),
           const SizedBox(width: 8),
@@ -263,12 +276,7 @@ class DayView extends StatelessWidget {
                 final isCompleted = task['isCompleted'] == true;
 
                 return InkWell(
-                  onTap: () {
-                    final taskId = task['id']?.toString();
-                    if (taskId != null) {
-                      provider.toggleTaskCompletion(taskId);
-                    }
-                  },
+                  onTap: () => TaskDetailDialog.show(context, task),
                   borderRadius: AppStyles.bRadiusSmall,
                   child: Container(
                     width: 200,
@@ -457,12 +465,7 @@ class DayView extends StatelessWidget {
                             right: 10, // Padding
                             height: height > 30 ? height : 30, // Min height
                             child: GestureDetector(
-                              onTap: () {
-                                final taskId = task['id']?.toString();
-                                if (taskId != null) {
-                                  provider.toggleTaskCompletion(taskId);
-                                }
-                              },
+                              onTap: () => TaskDetailDialog.show(context, task),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(8),
                                 child: Container(

@@ -143,7 +143,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(3, 5489887417224204944),
     name: 'CalendarTaskEntity',
-    lastPropertyId: const obx_int.IdUid(16, 3445624337483829038),
+    lastPropertyId: const obx_int.IdUid(17, 6025903371449862582),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -241,6 +241,12 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(16, 3445624337483829038),
         name: 'endTime',
         type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(17, 6025903371449862582),
+        name: 'isManuallyScheduled',
+        type: 1,
         flags: 0,
       ),
     ],
@@ -491,7 +497,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final endTimeOffset = object.endTime == null
             ? null
             : fbb.writeString(object.endTime!);
-        fbb.startTable(17);
+        fbb.startTable(18);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, uuidOffset);
         fbb.addOffset(2, taskNameOffset);
@@ -508,6 +514,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(13, originalTaskIdOffset);
         fbb.addOffset(14, startTimeOffset);
         fbb.addOffset(15, endTimeOffset);
+        fbb.addBool(16, object.isManuallyScheduled);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -575,6 +582,12 @@ obx_int.ModelDefinition getObjectBoxModel() {
           26,
           false,
         );
+        final isManuallyScheduledParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          36,
+          false,
+        );
         final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
           const fb.Int64Reader().vTableGet(buffer, rootOffset, 28, 0),
         );
@@ -594,6 +607,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           projectId: projectIdParam,
           messageId: messageIdParam,
           isCompleted: isCompletedParam,
+          isManuallyScheduled: isManuallyScheduledParam,
           createdAt: createdAtParam,
         );
 
@@ -767,4 +781,8 @@ class CalendarTaskEntity_ {
   static final endTime = obx.QueryStringProperty<CalendarTaskEntity>(
     _entities[2].properties[15],
   );
+
+  /// See [CalendarTaskEntity.isManuallyScheduled].
+  static final isManuallyScheduled =
+      obx.QueryBooleanProperty<CalendarTaskEntity>(_entities[2].properties[16]);
 }

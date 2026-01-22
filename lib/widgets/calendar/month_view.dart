@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../provider.dart';
 import '../../styles.dart';
+import '../task_detail_dialog.dart';
 
 /// Month View - Shows a full month calendar grid
 class MonthView extends StatelessWidget {
@@ -474,12 +475,7 @@ class _TaskListCard extends StatelessWidget {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: InkWell(
-                          onTap: () {
-                            final taskId = task['id']?.toString();
-                            if (taskId != null) {
-                              provider.toggleTaskCompletion(taskId);
-                            }
-                          },
+                          onTap: () => TaskDetailDialog.show(context, task),
                           borderRadius: AppStyles.bRadiusSmall,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
