@@ -22,14 +22,19 @@ enum AppThemeMode { light, dark, system }
 /// Supported locales
 enum AppLocale { english, chinese }
 
+/// Navigation items in sidebar
+enum NavItem { calendar, agent, dashboard }
+
 class DayCrafterProvider with ChangeNotifier {
   String? _userName;
   List<Project> _projects = [];
   String? _activeProjectId;
   bool _isLoading = false;
 
+  // Navigation state
+  NavItem _activeNavItem = NavItem.agent;
+
   // Calendar state
-  bool _isCalendarActive = false;
   CalendarViewType _currentCalendarView = CalendarViewType.day;
   DateTime _selectedDate = DateTime.now();
 
@@ -110,10 +115,18 @@ class DayCrafterProvider with ChangeNotifier {
   String? get activeProjectId => _activeProjectId;
   bool get isLoading => _isLoading;
 
+  // Navigation getters
+  NavItem get activeNavItem => _activeNavItem;
+  bool get isCalendarActive => _activeNavItem == NavItem.calendar;
+
   // Calendar getters
-  bool get isCalendarActive => _isCalendarActive;
   CalendarViewType get currentCalendarView => _currentCalendarView;
   DateTime get selectedDate => _selectedDate;
+
+  void setActiveNavItem(NavItem item) {
+    _activeNavItem = item;
+    notifyListeners();
+  }
 
   Project? get activeProject {
     if (_activeProjectId == null) return null;
@@ -217,13 +230,14 @@ class DayCrafterProvider with ChangeNotifier {
 
   void setActiveProject(String? id) {
     _activeProjectId = id;
-    _isCalendarActive = false; // Switch to agent view when selecting project
+    _activeNavItem =
+        NavItem.agent; // Switch to agent view when selecting project
     notifyListeners();
   }
 
   // Calendar methods
   void setCalendarActive(bool active) {
-    _isCalendarActive = active;
+    _activeNavItem = active ? NavItem.calendar : NavItem.agent;
     notifyListeners();
   }
 

@@ -1,100 +1,166 @@
-# DayCrafter - AI Calendar Frontend
+# DayCrafter - The AI Calendar
 
-An AI-powered project management and calendar application built with Flutter.
-
-## 🚀 Features
+AI-powered Project Management and Calendar
+## Features
 
 - **AI Project Manager**: Chat-based interface for project planning and task management
 - **Multi-project Support**: Create and manage multiple projects with color-coded labels
-- **Task Planning API**: Integration with backend task planning service
+- **Smart Calendar**: Day, Week, and Month views with task scheduling
+- **Task Scheduling**: Automatic priority-based task scheduling
+- **Dark/Light Theme**: Morandi color palette with theme switching
+- **Multi-language**: English and Traditional Chinese (繁體中文) support
 - **OpenAI Integration**: GPT-powered AI responses for project assistance
-- **Animated UI**: Modern bouncing dots "Agent thinking" animation during API calls
 
 ## 📋 Prerequisites
 
 - Flutter SDK ^3.10.4
 - Dart SDK
-- OpenAI API Key (for AI responses)
-- Task Planning Backend Server (optional, runs on `http://127.0.0.1:8000`)
+- OpenAI API Key
+- CrewAI Task Planning API: https://github.com/austin20010423/CrewAI-Calendar-API
 
-## 🛠️ Installation
+---
+
+## Installing Flutter on macOS
+
+If you don't have Flutter installed, follow these steps:
+
+### 1. Get the Flutter SDK
+
+**Option A: Using Homebrew (Recommended)**
+```bash
+brew install --cask flutter
+```
+
+**Option B: Manual Download**
+1. Download the latest stable release from [flutter.dev](https://docs.flutter.dev/get-started/install/macos).
+2. Extract the file to your desired location (e.g., `~/development`):
+   ```bash
+   cd ~/development
+   unzip ~/Downloads/flutter_macos_v3.x.x-stable.zip
+   ```
+3. Add the `flutter` tool to your path:
+   ```bash
+   export PATH="$PATH:`pwd`/flutter/bin"
+   ```
+
+### 2. iOS & macOS Platform Setup
+
+To build this app for macOS or iOS, you need Xcode:
+
+1. **Install Xcode**: Download from the Mac App Store.
+2. **Configure Command Line Tools**:
+   ```bash
+   sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+   sudo xcodebuild -runFirstLaunch
+   ```
+3. **Sign License Agreement**:
+   ```bash
+   sudo xcodebuild -license
+   ```
+
+### 3. Verify Installation
+
+Run the following command to check if there are any dependencies you need to install:
+```bash
+flutter doctor
+```
+
+---
+
+## Installation
+
+### Step 1: Clone the Repository
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd calendar_frontend
+git clone https://github.com/austin20010423/DayCrafter.git
+cd DayCrafter
+```
 
-# Install dependencies
+### Step 2: Install Flutter Dependencies
+
+```bash
 flutter pub get
-
-# Run the app
-flutter run
 ```
 
-## ⚙️ Configuration
-
-### OpenAI API Key
-
-The app requires an OpenAI API key for AI responses. Set it via environment variable when running:
+### Step 3: Generate ObjectBox Database Model
 
 ```bash
-flutter run --dart-define=OPENAI_API_KEY=your_actual_api_key_here
+dart run build_runner build --delete-conflicting-outputs
 ```
 
-**Current Issue**: The app shows `"Failed to connect to AI service"` because the API key is not configured. Get your key from [OpenAI Platform](https://platform.openai.com/account/api-keys).
+### Step 4: Configure API Keys
 
-### Task Planning Backend
+Create a `.env` file in the project root:
 
-The app calls a task planning API at `http://127.0.0.1:8000/run`. Make sure your backend server is running if you want task cards to appear.
-
-## 📁 Project Structure
-
-```
-lib/
-├── main.dart              # App entry point
-├── models.dart            # Data models (Project, Message)
-├── provider.dart          # State management (DayCrafterProvider)
-├── styles.dart            # App styling constants
-└── widgets/
-    ├── chat_view.dart     # Main chat interface with thinking animation
-    ├── empty_state.dart   # Empty state widget
-    ├── header.dart        # App header
-    ├── name_entry.dart    # User name entry screen
-    ├── project_modal.dart # Project creation modal
-    └── sidebar.dart       # Project sidebar navigation
+```bash
+touch .env
 ```
 
-## 🎨 Key Components
+Add your API keys to the `.env` file:
 
-### Thinking Animation (`chat_view.dart`)
-- `_BouncingDots`: Modern bouncing dots animation widget
-- `_buildLoadingBubble()`: Shows "Agent thinking" with animation during API calls
-- Animation triggers when `isLoading = true` in provider
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+```
 
-### State Management (`provider.dart`)
-- `sendMessage()`: Handles message sending and triggers API calls
-- `_getTasks()`: Calls task planning backend
-- `_getAiResponse()`: Calls OpenAI for AI responses
-- `isLoading`: Boolean that controls the thinking animation
+> 💡 Get your OpenAI API key from [OpenAI Platform](https://platform.openai.com/account/api-keys)
 
-## 🐛 Troubleshooting
+### Step 5: Set Up the Backend API (Required)
 
-| Issue | Solution |
-|-------|----------|
-| "Failed to connect to AI service" | Configure OpenAI API key via `--dart-define` |
-| "Failed to connect to task planning service" | Start your backend on port 8000 |
-| Animation not showing | Check that `isLoading` is being set in `sendMessage()` |
+Clone and run the CrewAI Task Planning API:
 
-## 📦 Dependencies
+```bash
+# In a separate terminal
+git clone https://github.com/austin20010423/CrewAI-Calendar-API.git
+cd CrewAI-Calendar-API
+
+# Follow the setup instructions in that repository
+# The API should run on http://127.0.0.1:8000
+```
+
+### Step 6: Run the Application
+
+```bash
+# For macOS
+flutter run -d macos
+
+# For Chrome (Web)
+flutter run -d chrome
+
+# For iOS Simulator
+flutter run -d ios
+
+# For Android Emulator
+flutter run -d android
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `OPENAI_API_KEY` | Your OpenAI API key for AI responses | ✅ Yes |
+
+### Backend API
+
+The app connects to the following endpoints:
+
+| Endpoint | URL | Description |
+|----------|-----|-------------|
+| Task Planning API | `http://127.0.0.1:8000/run` | CrewAI task generation |
+
+---
+
+## Key Dependencies
 
 - `provider` - State management
-- `chat_gpt_sdk` - OpenAI integration  
-- `http` - HTTP requests
-- `lucide_icons` - Icon set
-- `shared_preferences` - Local storage
+- `objectbox` - Local NoSQL database with vector search
+- `chat_gpt_sdk` - OpenAI integration
+- `flutter_localizations` - i18n support
 - `table_calendar` - Calendar widget
-- `glass_kit` / `liquid_glass_easy` - Glass UI effects
+- `lucide_icons` - Icon set
 
-## 📝 License
+---
 
-This project is private and not published to pub.dev.

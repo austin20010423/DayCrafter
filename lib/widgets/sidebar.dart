@@ -181,7 +181,6 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
 
               if (!showExpanded) const SizedBox(height: 24),
 
-              // Navigation Group
               Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: showExpanded ? 16 : 12,
@@ -191,19 +190,17 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                     _SidebarItem(
                       label: 'Calendar',
                       icon: LucideIcons.calendar,
-                      isActive: provider.isCalendarActive,
+                      isActive: provider.activeNavItem == NavItem.calendar,
                       isCollapsed: !showExpanded,
-                      onTap: () => provider.setCalendarActive(true),
+                      onTap: () => provider.setActiveNavItem(NavItem.calendar),
                     ),
                     _SidebarItem(
                       label: 'Agent',
                       icon: LucideIcons.smile,
-                      isActive:
-                          !provider.isCalendarActive &&
-                          provider.activeProjectId != null,
+                      isActive: provider.activeNavItem == NavItem.agent,
                       isCollapsed: !showExpanded,
                       onTap: () {
-                        provider.setCalendarActive(false);
+                        provider.setActiveNavItem(NavItem.agent);
                         if (provider.activeProjectId == null &&
                             provider.projects.isNotEmpty) {
                           provider.setActiveProject(provider.projects.first.id);
@@ -213,9 +210,9 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                     _SidebarItem(
                       label: 'Dashboard',
                       icon: LucideIcons.barChart3,
-                      isActive: false,
+                      isActive: provider.activeNavItem == NavItem.dashboard,
                       isCollapsed: !showExpanded,
-                      onTap: () {},
+                      onTap: () => provider.setActiveNavItem(NavItem.dashboard),
                     ),
                   ],
                 ),

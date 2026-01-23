@@ -61,12 +61,6 @@ class Header extends StatelessWidget {
               ),
               const SizedBox(width: 20),
               _HeaderIconButton(
-                icon: LucideIcons.bell,
-                onPressed: () {},
-                tooltip: 'Notifications',
-              ),
-              const SizedBox(width: 20),
-              _HeaderIconButton(
                 icon: LucideIcons.settings,
                 onPressed: () => _openSettings(context),
                 tooltip: 'Settings',
