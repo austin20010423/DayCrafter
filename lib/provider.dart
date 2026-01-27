@@ -30,6 +30,7 @@ class DayCrafterProvider with ChangeNotifier {
   // Auth state
   final LocalAuthService _authService = LocalAuthService();
   bool _isLoggedIn = false;
+  bool _isCheckingAuth = true; // Start as true to show loading initially
   String? _currentUserEmail;
 
   String? _userName;
@@ -118,6 +119,7 @@ class DayCrafterProvider with ChangeNotifier {
 
   // Auth getters
   bool get isLoggedIn => _isLoggedIn;
+  bool get isCheckingAuth => _isCheckingAuth;
   String? get currentUserEmail => _currentUserEmail;
 
   String? get userName => _userName;
@@ -178,8 +180,17 @@ class DayCrafterProvider with ChangeNotifier {
       _isLoggedIn = true;
       _currentUserEmail = user['email'];
       _userName = user['name'];
-      notifyListeners();
+
+      // Reset to default page (Agent)
+      _activeNavItem = NavItem.agent;
+
+      // Load user-specific data
+      await _loadUserData();
     }
+
+    // Done checking auth
+    _isCheckingAuth = false;
+    notifyListeners();
   }
 
   /// Register a new account

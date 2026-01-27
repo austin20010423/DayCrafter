@@ -105,6 +105,42 @@ class _MainNavigatorState extends State<MainNavigator> {
   Widget build(BuildContext context) {
     final provider = context.watch<DayCrafterProvider>();
 
+    // Show loading screen while checking auth status
+    if (provider.isCheckingAuth) {
+      return Scaffold(
+        backgroundColor: AppStyles.mBackground,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: AppStyles.mPrimary,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.flash_on,
+                  size: 32,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'DayCrafter',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppStyles.mTextPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     // Show auth screens if not logged in
     if (!provider.isLoggedIn) {
       if (_showRegister) {
