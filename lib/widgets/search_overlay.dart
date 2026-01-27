@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../provider.dart';
 import '../models.dart';
 import '../styles.dart';
+import 'task_detail_dialog.dart';
 
 /// A beautiful search overlay that shows when the search button is pressed.
 /// Features a glassmorphic design with smooth animations and semantic search.
@@ -127,8 +128,8 @@ class _SearchOverlayState extends State<SearchOverlay>
       // Search messages (semantic search)
       final messageResults = await provider.semanticSearch(query);
 
-      // Search tasks (text search with date filter)
-      final taskResults = provider.searchTasks(
+      // Search tasks (semantic search with date filter)
+      final taskResults = await provider.semanticSearchTasks(
         query,
         startDate: _startDate,
         endDate: _endDate,
@@ -553,7 +554,11 @@ class _SearchOverlayState extends State<SearchOverlay>
       color: AppStyles.mBackground.withValues(alpha: 0.4),
       borderRadius: AppStyles.bRadiusSmall,
       child: InkWell(
-        onTap: _closeOverlay,
+        onTap: () {
+          // First pop the search overlay, then show task details
+          Navigator.of(context).pop();
+          TaskDetailDialog.show(context, task);
+        },
         borderRadius: AppStyles.bRadiusSmall,
         child: Padding(
           padding: const EdgeInsets.all(14),

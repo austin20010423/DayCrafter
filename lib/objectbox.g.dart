@@ -90,7 +90,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 5787452846158435810),
     name: 'ProjectEntity',
-    lastPropertyId: const obx_int.IdUid(6, 7891003221259516193),
+    lastPropertyId: const obx_int.IdUid(7, 8221843284685662077),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -130,6 +130,12 @@ final _entities = <obx_int.ModelEntity>[
         type: 9,
         flags: 0,
       ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 8221843284685662077),
+        name: 'userEmail',
+        type: 9,
+        flags: 0,
+      ),
     ],
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[
@@ -143,7 +149,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(3, 5489887417224204944),
     name: 'CalendarTaskEntity',
-    lastPropertyId: const obx_int.IdUid(17, 6025903371449862582),
+    lastPropertyId: const obx_int.IdUid(18, 3549927562348153857),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -247,6 +253,12 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(17, 6025903371449862582),
         name: 'isManuallyScheduled',
         type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(18, 3549927562348153857),
+        name: 'userEmail',
+        type: 9,
         flags: 0,
       ),
     ],
@@ -411,13 +423,17 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final colorHexOffset = object.colorHex == null
             ? null
             : fbb.writeString(object.colorHex!);
-        fbb.startTable(7);
+        final userEmailOffset = object.userEmail == null
+            ? null
+            : fbb.writeString(object.userEmail!);
+        fbb.startTable(8);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, uuidOffset);
         fbb.addOffset(2, nameOffset);
         fbb.addOffset(3, descriptionOffset);
         fbb.addOffset(4, createdAtOffset);
         fbb.addOffset(5, colorHexOffset);
+        fbb.addOffset(6, userEmailOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -445,6 +461,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final colorHexParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGetNullable(buffer, rootOffset, 14);
+        final userEmailParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 16);
         final object = ProjectEntity(
           id: idParam,
           uuid: uuidParam,
@@ -452,6 +471,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           description: descriptionParam,
           createdAt: createdAtParam,
           colorHex: colorHexParam,
+          userEmail: userEmailParam,
         );
         obx_int.InternalToManyAccess.setRelInfo<ProjectEntity>(
           object.messages,
@@ -497,7 +517,10 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final endTimeOffset = object.endTime == null
             ? null
             : fbb.writeString(object.endTime!);
-        fbb.startTable(18);
+        final userEmailOffset = object.userEmail == null
+            ? null
+            : fbb.writeString(object.userEmail!);
+        fbb.startTable(19);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, uuidOffset);
         fbb.addOffset(2, taskNameOffset);
@@ -515,6 +538,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(14, startTimeOffset);
         fbb.addOffset(15, endTimeOffset);
         fbb.addBool(16, object.isManuallyScheduled);
+        fbb.addOffset(17, userEmailOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -591,6 +615,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final createdAtParam = DateTime.fromMillisecondsSinceEpoch(
           const fb.Int64Reader().vTableGet(buffer, rootOffset, 28, 0),
         );
+        final userEmailParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGetNullable(buffer, rootOffset, 38);
         final object = CalendarTaskEntity(
           id: idParam,
           uuid: uuidParam,
@@ -609,6 +636,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           isCompleted: isCompletedParam,
           isManuallyScheduled: isManuallyScheduledParam,
           createdAt: createdAtParam,
+          userEmail: userEmailParam,
         );
 
         return object;
@@ -692,6 +720,11 @@ class ProjectEntity_ {
   /// See [ProjectEntity.colorHex].
   static final colorHex = obx.QueryStringProperty<ProjectEntity>(
     _entities[1].properties[5],
+  );
+
+  /// See [ProjectEntity.userEmail].
+  static final userEmail = obx.QueryStringProperty<ProjectEntity>(
+    _entities[1].properties[6],
   );
 
   /// see [ProjectEntity.messages]
@@ -785,4 +818,9 @@ class CalendarTaskEntity_ {
   /// See [CalendarTaskEntity.isManuallyScheduled].
   static final isManuallyScheduled =
       obx.QueryBooleanProperty<CalendarTaskEntity>(_entities[2].properties[16]);
+
+  /// See [CalendarTaskEntity.userEmail].
+  static final userEmail = obx.QueryStringProperty<CalendarTaskEntity>(
+    _entities[2].properties[17],
+  );
 }

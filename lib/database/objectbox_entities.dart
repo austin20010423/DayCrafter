@@ -17,6 +17,9 @@ class ProjectEntity {
   String createdAt;
   String? colorHex;
 
+  /// User email for per-account data isolation
+  String? userEmail;
+
   /// Relationship to messages
   @Backlink('project')
   final messages = ToMany<MessageEntity>();
@@ -28,6 +31,7 @@ class ProjectEntity {
     required this.description,
     required this.createdAt,
     this.colorHex,
+    this.userEmail,
   });
 
   /// Convert from domain Project model
@@ -179,6 +183,9 @@ class CalendarTaskEntity {
   @Property(type: PropertyType.date)
   DateTime createdAt;
 
+  /// User email for per-account data isolation
+  String? userEmail;
+
   CalendarTaskEntity({
     this.id = 0,
     required this.uuid,
@@ -197,6 +204,7 @@ class CalendarTaskEntity {
     this.isCompleted = false,
     this.isManuallyScheduled = false,
     required this.createdAt,
+    this.userEmail,
   });
 
   /// Generate a list of task instances, one for each day between [start] and [end]

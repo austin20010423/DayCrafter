@@ -61,7 +61,7 @@
     },
     {
       "id": "2:5787452846158435810",
-      "lastPropertyId": "6:7891003221259516193",
+      "lastPropertyId": "7:8221843284685662077",
       "name": "ProjectEntity",
       "properties": [
         {
@@ -96,13 +96,18 @@
           "id": "6:7891003221259516193",
           "name": "colorHex",
           "type": 9
+        },
+        {
+          "id": "7:8221843284685662077",
+          "name": "userEmail",
+          "type": 9
         }
       ],
       "relations": []
     },
     {
       "id": "3:5489887417224204944",
-      "lastPropertyId": "17:6025903371449862582",
+      "lastPropertyId": "18:3549927562348153857",
       "name": "CalendarTaskEntity",
       "properties": [
         {
@@ -192,6 +197,11 @@
           "id": "17:6025903371449862582",
           "name": "isManuallyScheduled",
           "type": 1
+        },
+        {
+          "id": "18:3549927562348153857",
+          "name": "userEmail",
+          "type": 9
         }
       ],
       "relations": []

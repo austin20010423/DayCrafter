@@ -253,10 +253,26 @@ class DayCrafterProvider with ChangeNotifier {
     final userPrefix = _currentUserEmail ?? '';
 
     // Load projects for this user
-    final projectsJson = prefs.getString('${userPrefix}_projects');
-    if (projectsJson != null) {
-      final List<dynamic> decoded = jsonDecode(projectsJson);
-      _projects = decoded.map((p) => Project.fromJson(p)).toList();
+    // Load projects for this user
+    // 1. Try ObjectBox first
+    final db = ObjectBoxService.instance;
+    if (db.isInitialized) {
+      final entities = db.getAllProjects(userEmail: _currentUserEmail);
+      if (entities.isNotEmpty) {
+        _projects = entities.map((e) => e.toProject()).toList();
+      }
+    }
+
+    // 2. Fallback to SharedPreferences if empty
+    if (_projects.isEmpty) {
+      final projectsJson = prefs.getString('${userPrefix}_projects');
+      if (projectsJson != null) {
+        final List<dynamic> decoded = jsonDecode(projectsJson);
+        _projects = decoded.map((p) => Project.fromJson(p)).toList();
+
+        // Sync to ObjectBox for future
+        await _saveProjects();
+      }
     }
 
     // Load changelogs for token-efficient LLM context
@@ -404,9 +420,12 @@ class DayCrafterProvider with ChangeNotifier {
         }
 
         // Use expanded to get ALL daily instances
+        final pid = projectId ?? _activeProjectId;
+        debugPrint('Saving task ${task['task']} with Project ID: $pid');
+
         final taskInstances = CalendarTaskEntity.fromTaskMapExpanded(
           task,
-          projectId: projectId ?? _activeProjectId,
+          projectId: pid,
           messageId: messageId,
         );
 
@@ -431,6 +450,11 @@ class DayCrafterProvider with ChangeNotifier {
         allScheduledTasks.addAll(scheduledTasks);
       }
 
+      // Set userEmail on all tasks before saving
+      for (final task in allScheduledTasks) {
+        task.userEmail = _currentUserEmail;
+      }
+
       db.saveCalendarTasks(allScheduledTasks);
       notifyListeners();
     } catch (e) {
@@ -438,7 +462,7 @@ class DayCrafterProvider with ChangeNotifier {
     }
   }
 
-  /// Get tasks for a specific date
+  /// Get tasks for a specific date (filtered by current user)
   List<Map<String, dynamic>> getTasksForDate(DateTime date) {
     final db = ObjectBoxService.instance;
     if (!db.isInitialized) {
@@ -447,7 +471,7 @@ class DayCrafterProvider with ChangeNotifier {
     }
 
     try {
-      final entities = db.getTasksForDate(date);
+      final entities = db.getTasksForDate(date, userEmail: _currentUserEmail);
       return entities.map((e) => e.toTaskMap()).toList();
     } catch (e) {
       debugPrint('❌ Error getting tasks for date: $e');
@@ -455,7 +479,7 @@ class DayCrafterProvider with ChangeNotifier {
     }
   }
 
-  /// Get tasks for a date range
+  /// Get tasks for a date range (filtered by current user)
   List<Map<String, dynamic>> getTasksForDateRange(
     DateTime start,
     DateTime end,
@@ -464,7 +488,11 @@ class DayCrafterProvider with ChangeNotifier {
     if (!db.isInitialized) return [];
 
     try {
-      final entities = db.getTasksForDateRange(start, end);
+      final entities = db.getTasksForDateRange(
+        start,
+        end,
+        userEmail: _currentUserEmail,
+      );
       return entities.map((e) => e.toTaskMap()).toList();
     } catch (e) {
       debugPrint('❌ Error getting tasks for date range: $e');
@@ -504,6 +532,7 @@ class DayCrafterProvider with ChangeNotifier {
         isManuallyScheduled: taskData['isManuallyScheduled'] == true,
         projectId: _activeProjectId,
         createdAt: DateTime.now(),
+        userEmail: _currentUserEmail,
       );
 
       db.saveCalendarTasks([entity]);
@@ -537,6 +566,7 @@ class DayCrafterProvider with ChangeNotifier {
           ? taskData['priority']
           : existing.priority;
       existing.isManuallyScheduled = taskData['isManuallyScheduled'] == true;
+      existing.userEmail = _currentUserEmail;
 
       db.saveCalendarTasks([existing]);
       notifyListeners();
@@ -804,8 +834,31 @@ Do not provide anyother information. Just task summary, changes and next steps.'
 
   Future<void> _saveProjects() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Use user-specific key if logged in
+    final key = _currentUserEmail != null
+        ? '${_currentUserEmail}_projects'
+        : 'daycrafter_projects';
+
     final projectsJson = jsonEncode(_projects.map((p) => p.toJson()).toList());
-    await prefs.setString('daycrafter_projects', projectsJson);
+    await prefs.setString(key, projectsJson);
+
+    // Also save to ObjectBox for robust storage
+    if (_currentUserEmail != null) {
+      try {
+        final db = ObjectBoxService.instance;
+        if (db.isInitialized) {
+          for (final project in _projects) {
+            await db.saveProjectFromDomain(
+              project,
+              userEmail: _currentUserEmail,
+            );
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ Failed to sync projects to ObjectBox: $e');
+      }
+    }
   }
 
   /// Updates the token-efficient changelog with a compact summary of new tasks
@@ -876,8 +929,8 @@ Do not provide anyother information. Just task summary, changes and next steps.'
     _taskChangelogs.remove(projectId);
     await _saveChangelogs();
 
-    // CRM-style cascade delete: removes tasks from calendar DB
-    ObjectBoxService.instance.deleteCalendarTasksForProject(projectId);
+    // CRM-style cascade delete: removes project, messages, and tasks from DB
+    ObjectBoxService.instance.deleteProjectByUuid(projectId);
 
     // Switch to another project if deleted the active one
     if (_activeProjectId == projectId) {
@@ -885,6 +938,14 @@ Do not provide anyother information. Just task summary, changes and next steps.'
     }
 
     await _saveProjects();
+
+    // Debug verification
+    final db = ObjectBoxService.instance;
+    final allTasks = db.getAllCalendarTasks(userEmail: _currentUserEmail);
+    debugPrint(
+      '🔎 DEBUG check: User has ${allTasks.length} total tasks remaining in DB after deletion.',
+    );
+
     notifyListeners();
   }
 
@@ -1070,19 +1131,97 @@ Do not provide anyother information. Just task summary, changes and next steps.'
     }
   }
 
-  /// Search calendar tasks by text with optional date range filter
-  /// Returns matching tasks as maps
-  List<Map<String, dynamic>> searchTasks(
+  /// Search calendar tasks using semantic search
+  /// Generates embedding for query and compares with task content
+  /// Returns matching tasks sorted by relevance
+  Future<List<Map<String, dynamic>>> semanticSearchTasks(
+    String query, {
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 20,
+  }) async {
+    try {
+      final dbService = ObjectBoxService.instance;
+      final embeddingService = EmbeddingService.instance;
+
+      if (!dbService.isInitialized) {
+        debugPrint('ObjectBox not initialized, falling back to text search');
+        return _textSearchTasks(query, startDate: startDate, endDate: endDate);
+      }
+
+      if (!embeddingService.isReady) {
+        debugPrint('Embedding service not ready, falling back to text search');
+        return _textSearchTasks(query, startDate: startDate, endDate: endDate);
+      }
+
+      // Get all tasks (with optional date filter)
+      var tasks = dbService.getAllCalendarTasks();
+
+      // Apply date filter
+      if (startDate != null) {
+        final start = DateTime(startDate.year, startDate.month, startDate.day);
+        tasks = tasks.where((t) => !t.calendarDate.isBefore(start)).toList();
+      }
+      if (endDate != null) {
+        final end = DateTime(
+          endDate.year,
+          endDate.month,
+          endDate.day,
+        ).add(const Duration(days: 1));
+        tasks = tasks.where((t) => t.calendarDate.isBefore(end)).toList();
+      }
+
+      if (tasks.isEmpty) {
+        return [];
+      }
+
+      // Generate query embedding
+      final queryEmbedding = await embeddingService.generateEmbedding(query);
+
+      // Generate embeddings for task content (batch to reduce API calls)
+      final taskTexts = tasks.map((t) {
+        final text = '${t.taskName} ${t.description ?? ''}';
+        return text.trim();
+      }).toList();
+
+      final taskEmbeddings = await embeddingService.generateEmbeddings(
+        taskTexts,
+      );
+
+      // Calculate similarity scores
+      final scoredTasks = <Map<String, dynamic>>[];
+      for (int i = 0; i < tasks.length; i++) {
+        final similarity = _cosineSimilarity(queryEmbedding, taskEmbeddings[i]);
+        if (similarity > 0.1) {
+          final taskMap = tasks[i].toTaskMap();
+          taskMap['_score'] = similarity;
+          scoredTasks.add(taskMap);
+        }
+      }
+
+      // Sort by similarity score descending
+      scoredTasks.sort(
+        (a, b) => (b['_score'] as double).compareTo(a['_score'] as double),
+      );
+
+      // Return top results
+      return scoredTasks.take(limit).toList();
+    } catch (e) {
+      debugPrint('Semantic task search error: $e');
+      // Fallback to text search on error
+      return _textSearchTasks(query, startDate: startDate, endDate: endDate);
+    }
+  }
+
+  /// Fallback text-based task search
+  List<Map<String, dynamic>> _textSearchTasks(
     String query, {
     DateTime? startDate,
     DateTime? endDate,
   }) {
     try {
       final dbService = ObjectBoxService.instance;
-
-      if (!dbService.isInitialized) {
-        return [];
-      }
+      if (!dbService.isInitialized) return [];
 
       final results = dbService.searchTasksByText(
         query,
@@ -1092,9 +1231,36 @@ Do not provide anyother information. Just task summary, changes and next steps.'
 
       return results.map((e) => e.toTaskMap()).toList();
     } catch (e) {
-      debugPrint('Task search error: $e');
+      debugPrint('Text task search error: $e');
       return [];
     }
+  }
+
+  /// Calculate cosine similarity between two vectors
+  double _cosineSimilarity(List<double> a, List<double> b) {
+    if (a.length != b.length) return 0.0;
+
+    double dotProduct = 0.0;
+    double normA = 0.0;
+    double normB = 0.0;
+
+    for (int i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    if (normA == 0 || normB == 0) return 0.0;
+    return dotProduct / (math.sqrt(normA) * math.sqrt(normB));
+  }
+
+  /// Legacy text-based search (kept for compatibility)
+  List<Map<String, dynamic>> searchTasks(
+    String query, {
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    return _textSearchTasks(query, startDate: startDate, endDate: endDate);
   }
 
   /// Save message to ObjectBox with embedding for future semantic search

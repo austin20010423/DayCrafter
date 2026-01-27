@@ -74,9 +74,11 @@ class ObjectBoxService {
     return projectBox.put(project);
   }
 
-  /// Get all projects
-  List<ProjectEntity> getAllProjects() {
-    return projectBox.getAll();
+  /// Get all projects for a specific user
+  List<ProjectEntity> getAllProjects({String? userEmail}) {
+    final all = projectBox.getAll();
+    if (userEmail == null) return all;
+    return all.where((p) => p.userEmail == userEmail).toList();
   }
 
   /// Get a project by its UUID
@@ -95,6 +97,10 @@ class ObjectBoxService {
       for (final message in entity.messages) {
         messageBox.remove(message.id);
       }
+
+      // Delete all associated calendar tasks
+      deleteCalendarTasksForProject(uuid);
+
       return projectBox.remove(entity.id);
     }
     return false;
@@ -204,19 +210,24 @@ class ObjectBoxService {
     }
   }
 
-  /// Get all calendar tasks
-  List<CalendarTaskEntity> getAllCalendarTasks() {
-    return calendarTaskBox.getAll();
+  /// Get all calendar tasks for a specific user
+  List<CalendarTaskEntity> getAllCalendarTasks({String? userEmail}) {
+    final all = calendarTaskBox.getAll();
+    if (userEmail == null) return all;
+    return all.where((t) => t.userEmail == userEmail).toList();
   }
 
   /// Get calendar tasks for a specific date
-  List<CalendarTaskEntity> getTasksForDate(DateTime date) {
+  List<CalendarTaskEntity> getTasksForDate(DateTime date, {String? userEmail}) {
     final startOfDay = DateTime(date.year, date.month, date.day);
     final endOfDay = startOfDay.add(const Duration(days: 1));
 
     // Get all tasks and filter by date (simpler and more reliable)
     final allTasks = calendarTaskBox.getAll();
     return allTasks.where((task) {
+      // Filter by user if specified
+      if (userEmail != null && task.userEmail != userEmail) return false;
+
       final taskDate = task.calendarDate;
       return taskDate.isAfter(
             startOfDay.subtract(const Duration(milliseconds: 1)),
@@ -226,7 +237,11 @@ class ObjectBoxService {
   }
 
   /// Get calendar tasks for a date range
-  List<CalendarTaskEntity> getTasksForDateRange(DateTime start, DateTime end) {
+  List<CalendarTaskEntity> getTasksForDateRange(
+    DateTime start,
+    DateTime end, {
+    String? userEmail,
+  }) {
     final startOfDay = DateTime(start.year, start.month, start.day);
     final endOfDay = DateTime(
       end.year,
@@ -237,6 +252,9 @@ class ObjectBoxService {
     // Get all tasks and filter by date range
     final allTasks = calendarTaskBox.getAll();
     return allTasks.where((task) {
+      // Filter by user if specified
+      if (userEmail != null && task.userEmail != userEmail) return false;
+
       final taskDate = task.calendarDate;
       return taskDate.isAfter(
             startOfDay.subtract(const Duration(milliseconds: 1)),
@@ -276,8 +294,13 @@ class ObjectBoxService {
         .build();
     final tasks = query.find();
 
-    debugPrint('🗑️ Deleting ${tasks.length} tasks for project $projectId');
+    debugPrint('🗑️ FOUND ${tasks.length} tasks for project $projectId');
+    for (var t in tasks) {
+      debugPrint('  - Will delete task: ${t.taskName} (UUID: ${t.uuid})');
+    }
+
     calendarTaskBox.removeMany(tasks.map((t) => t.id).toList());
+    debugPrint('🗑️ Deleted tasks successfully');
     query.close();
   }
 
@@ -402,7 +425,10 @@ class ObjectBoxService {
   // ============= Conversion Helpers =============
 
   /// Convert domain Project to entity and save
-  Future<ProjectEntity> saveProjectFromDomain(Project project) async {
+  Future<ProjectEntity> saveProjectFromDomain(
+    Project project, {
+    String? userEmail,
+  }) async {
     // Check if project already exists
     var entity = getProjectByUuid(project.id);
 
@@ -411,9 +437,12 @@ class ObjectBoxService {
       entity.name = project.name;
       entity.description = project.description;
       entity.colorHex = project.colorHex;
+      // Don't overwrite existing userEmail unless specified
+      if (userEmail != null) entity.userEmail = userEmail;
     } else {
       // Create new project
       entity = ProjectEntity.fromProject(project);
+      entity.userEmail = userEmail;
     }
 
     projectBox.put(entity);
