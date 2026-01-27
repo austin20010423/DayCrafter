@@ -39,7 +39,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
+  String get delete => 'Delete';
+
+  @override
   String get addTask => 'Add Task';
+
+  @override
+  String get addNewTask => 'Add New Task';
 
   @override
   String get editTask => 'Edit Task';
@@ -49,6 +55,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get description => 'Description';
+
+  @override
+  String get descriptionOptional => 'Description (Optional)';
 
   @override
   String get priority => 'Priority';
@@ -93,6 +102,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get search => 'Search';
 
   @override
+  String get searchShortcut => 'Search (⌘K)';
+
+  @override
   String get notifications => 'Notifications';
 
   @override
@@ -102,10 +114,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteProject => 'Delete Project';
 
   @override
+  String deleteProjectConfirm(String projectName) {
+    return 'Are you sure you want to delete \"$projectName\"? This action cannot be undone.';
+  }
+
+  @override
   String get projectName => 'Project Name';
 
   @override
+  String get project => 'Project';
+
+  @override
   String get calendar => 'Calendar';
+
+  @override
+  String get agent => 'Agent';
+
+  @override
+  String get dashboard => 'Dashboard';
 
   @override
   String get day => 'Day';
@@ -145,4 +171,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get saveChanges => 'Save Changes';
+
+  @override
+  String get defaultProject => 'Default';
+
+  @override
+  String get personalPlan => 'Personal Plan';
+
+  @override
+  String get about => 'About';
 }

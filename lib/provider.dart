@@ -23,7 +23,7 @@ enum AppThemeMode { light, dark, system }
 enum AppLocale { english, chinese }
 
 /// Navigation items in sidebar
-enum NavItem { calendar, agent, dashboard }
+enum NavItem { calendar, agent, dashboard, settings }
 
 class DayCrafterProvider with ChangeNotifier {
   String? _userName;
@@ -118,6 +118,7 @@ class DayCrafterProvider with ChangeNotifier {
   // Navigation getters
   NavItem get activeNavItem => _activeNavItem;
   bool get isCalendarActive => _activeNavItem == NavItem.calendar;
+  bool get isSettingsActive => _activeNavItem == NavItem.settings;
 
   // Calendar getters
   CalendarViewType get currentCalendarView => _currentCalendarView;

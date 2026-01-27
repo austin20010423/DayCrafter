@@ -9,7 +9,7 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get appTitle => '日程大師';
+  String get appTitle => 'DayCrafter';
 
   @override
   String get settings => '設定';
@@ -39,7 +39,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cancel => '取消';
 
   @override
+  String get delete => '刪除';
+
+  @override
   String get addTask => '新增任務';
+
+  @override
+  String get addNewTask => '新增任務';
 
   @override
   String get editTask => '編輯任務';
@@ -49,6 +55,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get description => '描述';
+
+  @override
+  String get descriptionOptional => '描述（選填）';
 
   @override
   String get priority => '優先級';
@@ -93,6 +102,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get search => '搜尋';
 
   @override
+  String get searchShortcut => '搜尋 (⌘K)';
+
+  @override
   String get notifications => '通知';
 
   @override
@@ -102,10 +114,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get deleteProject => '刪除專案';
 
   @override
+  String deleteProjectConfirm(String projectName) {
+    return '確定要刪除「$projectName」嗎？此操作無法復原。';
+  }
+
+  @override
   String get projectName => '專案名稱';
 
   @override
+  String get project => '專案';
+
+  @override
   String get calendar => '日曆';
+
+  @override
+  String get agent => '助理';
+
+  @override
+  String get dashboard => '儀表板';
 
   @override
   String get day => '日';
@@ -145,4 +171,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get saveChanges => '儲存變更';
+
+  @override
+  String get defaultProject => '預設';
+
+  @override
+  String get personalPlan => '個人方案';
+
+  @override
+  String get about => '關於';
 }

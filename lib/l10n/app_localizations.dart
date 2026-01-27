@@ -158,11 +158,23 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get cancel;
 
+  /// Delete button text
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get delete;
+
   /// Add task button
   ///
   /// In en, this message translates to:
   /// **'Add Task'**
   String get addTask;
+
+  /// Add new task dialog title
+  ///
+  /// In en, this message translates to:
+  /// **'Add New Task'**
+  String get addNewTask;
 
   /// Edit task title
   ///
@@ -181,6 +193,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Description'**
   String get description;
+
+  /// Optional description label
+  ///
+  /// In en, this message translates to:
+  /// **'Description (Optional)'**
+  String get descriptionOptional;
 
   /// Priority label
   ///
@@ -266,6 +284,12 @@ abstract class AppLocalizations {
   /// **'Search'**
   String get search;
 
+  /// Search tooltip with shortcut
+  ///
+  /// In en, this message translates to:
+  /// **'Search (⌘K)'**
+  String get searchShortcut;
+
   /// Notifications tooltip
   ///
   /// In en, this message translates to:
@@ -284,17 +308,41 @@ abstract class AppLocalizations {
   /// **'Delete Project'**
   String get deleteProject;
 
+  /// Delete project confirmation
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete \"{projectName}\"? This action cannot be undone.'**
+  String deleteProjectConfirm(String projectName);
+
   /// Project name field
   ///
   /// In en, this message translates to:
   /// **'Project Name'**
   String get projectName;
 
+  /// Project section header
+  ///
+  /// In en, this message translates to:
+  /// **'Project'**
+  String get project;
+
   /// Calendar button
   ///
   /// In en, this message translates to:
   /// **'Calendar'**
   String get calendar;
+
+  /// Agent navigation item
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get agent;
+
+  /// Dashboard navigation item
+  ///
+  /// In en, this message translates to:
+  /// **'Dashboard'**
+  String get dashboard;
 
   /// Day view option
   ///
@@ -373,6 +421,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save Changes'**
   String get saveChanges;
+
+  /// Default project name
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get defaultProject;
+
+  /// User plan label
+  ///
+  /// In en, this message translates to:
+  /// **'Personal Plan'**
+  String get personalPlan;
+
+  /// About section title
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get about;
 }
 
 class _AppLocalizationsDelegate

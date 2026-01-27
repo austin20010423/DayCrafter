@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../provider.dart';
 import '../../styles.dart';
+import '../../l10n/app_localizations.dart';
 import '../task_detail_dialog.dart';
 
 /// Month View - Shows a full month calendar grid
@@ -48,7 +49,13 @@ class MonthView extends StatelessWidget {
     DayCrafterProvider provider,
     DateTime selectedDate,
   ) {
-    final monthYear = DateFormat('MMMM yyyy').format(selectedDate);
+    final localeString = provider.locale == AppLocale.chinese
+        ? 'zh_TW'
+        : 'en_US';
+    final monthYear = DateFormat(
+      'MMMM yyyy',
+      localeString,
+    ).format(selectedDate);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -86,7 +93,7 @@ class MonthView extends StatelessWidget {
           ),
           const Spacer(),
           // View toggle buttons
-          _buildViewToggleCompact(provider),
+          _buildViewToggleCompact(context, provider),
           const SizedBox(width: 16),
           IconButton(
             onPressed: () => provider.setCalendarActive(false),
@@ -332,6 +339,7 @@ class MonthView extends StatelessWidget {
     DayCrafterProvider provider,
     DateTime selectedDate,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     // Show Today's and Tomorrow's tasks
     final today = DateTime.now();
     final tomorrow = today.add(const Duration(days: 1));
@@ -339,12 +347,12 @@ class MonthView extends StatelessWidget {
     return Column(
       children: [
         Expanded(
-          child: _TaskListCard(title: "Today's List", date: today),
+          child: _TaskListCard(title: l10n.today, date: today),
         ),
         const SizedBox(height: 12),
         Expanded(
           child: _TaskListCard(
-            title: "Tomorrow's List",
+            title: l10n.tomorrow,
             date: tomorrow,
             isHighlighted: true,
           ),
@@ -353,26 +361,30 @@ class MonthView extends StatelessWidget {
     );
   }
 
-  Widget _buildViewToggleCompact(DayCrafterProvider provider) {
+  Widget _buildViewToggleCompact(
+    BuildContext context,
+    DayCrafterProvider provider,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         _ViewToggleButton(
-          label: 'Day',
+          label: l10n.day,
           isActive: provider.currentCalendarView == CalendarViewType.day,
           onTap: () => provider.setCalendarView(CalendarViewType.day),
           compact: true,
         ),
         const SizedBox(width: 4),
         _ViewToggleButton(
-          label: 'Week',
+          label: l10n.week,
           isActive: provider.currentCalendarView == CalendarViewType.week,
           onTap: () => provider.setCalendarView(CalendarViewType.week),
           compact: true,
         ),
         const SizedBox(width: 4),
         _ViewToggleButton(
-          label: 'Month',
+          label: l10n.month,
           isActive: provider.currentCalendarView == CalendarViewType.month,
           onTap: () => provider.setCalendarView(CalendarViewType.month),
           compact: true,
@@ -452,7 +464,7 @@ class _TaskListCard extends StatelessWidget {
             child: tasks.isEmpty
                 ? Center(
                     child: Text(
-                      'No tasks',
+                      AppLocalizations.of(context)!.noTasks,
                       style: TextStyle(
                         fontSize: 12,
                         color: AppStyles.mTextSecondary,

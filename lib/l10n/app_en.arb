@@ -31,8 +31,14 @@
   "cancel": "Cancel",
   "@cancel": {"description": "Cancel button text"},
   
+  "delete": "Delete",
+  "@delete": {"description": "Delete button text"},
+  
   "addTask": "Add Task",
   "@addTask": {"description": "Add task button"},
+  
+  "addNewTask": "Add New Task",
+  "@addNewTask": {"description": "Add new task dialog title"},
   
   "editTask": "Edit Task",
   "@editTask": {"description": "Edit task title"},
@@ -42,6 +48,9 @@
   
   "description": "Description",
   "@description": {"description": "Description field label"},
+  
+  "descriptionOptional": "Description (Optional)",
+  "@descriptionOptional": {"description": "Optional description label"},
   
   "priority": "Priority",
   "@priority": {"description": "Priority label"},
@@ -85,6 +94,9 @@
   "search": "Search",
   "@search": {"description": "Search placeholder"},
   
+  "searchShortcut": "Search (⌘K)",
+  "@searchShortcut": {"description": "Search tooltip with shortcut"},
+  
   "notifications": "Notifications",
   "@notifications": {"description": "Notifications tooltip"},
   
@@ -94,11 +106,23 @@
   "deleteProject": "Delete Project",
   "@deleteProject": {"description": "Delete project button"},
   
+  "deleteProjectConfirm": "Are you sure you want to delete \"{projectName}\"? This action cannot be undone.",
+  "@deleteProjectConfirm": {"description": "Delete project confirmation", "placeholders": {"projectName": {"type": "String"}}},
+  
   "projectName": "Project Name",
   "@projectName": {"description": "Project name field"},
   
+  "project": "Project",
+  "@project": {"description": "Project section header"},
+  
   "calendar": "Calendar",
   "@calendar": {"description": "Calendar button"},
+  
+  "agent": "Agent",
+  "@agent": {"description": "Agent navigation item"},
+  
+  "dashboard": "Dashboard",
+  "@dashboard": {"description": "Dashboard navigation item"},
   
   "day": "Day",
   "@day": {"description": "Day view option"},
@@ -137,5 +161,14 @@
   "@pleaseEnterTaskName": {"description": "Validation message"},
   
   "saveChanges": "Save Changes",
-  "@saveChanges": {"description": "Save changes button"}
+  "@saveChanges": {"description": "Save changes button"},
+  
+  "defaultProject": "Default",
+  "@defaultProject": {"description": "Default project name"},
+  
+  "personalPlan": "Personal Plan",
+  "@personalPlan": {"description": "User plan label"},
+  
+  "about": "About",
+  "@about": {"description": "About section title"}
 }

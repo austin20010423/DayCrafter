@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../provider.dart';
 import '../styles.dart';
+import '../l10n/app_localizations.dart';
 
 Color _parseHexColor(String? hex) {
   if (hex == null) return AppStyles.mTextSecondary;
@@ -35,17 +36,16 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     String projectId,
     String projectName,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Project'),
-        content: Text(
-          'Are you sure you want to delete "$projectName"? This action cannot be undone.',
-        ),
+        title: Text(l10n.deleteProject),
+        content: Text(l10n.deleteProjectConfirm(projectName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -53,7 +53,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
               Navigator.pop(context);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -63,6 +63,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DayCrafterProvider>();
+    final l10n = AppLocalizations.of(context)!;
     final projects = provider.projects;
     final activeProjectId = provider.activeProjectId;
 
@@ -148,7 +149,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'DayCrafter',
+                          l10n.appTitle,
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 20,
@@ -188,14 +189,14 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 child: Column(
                   children: [
                     _SidebarItem(
-                      label: 'Calendar',
+                      label: l10n.calendar,
                       icon: LucideIcons.calendar,
                       isActive: provider.activeNavItem == NavItem.calendar,
                       isCollapsed: !showExpanded,
                       onTap: () => provider.setActiveNavItem(NavItem.calendar),
                     ),
                     _SidebarItem(
-                      label: 'Agent',
+                      label: l10n.agent,
                       icon: LucideIcons.smile,
                       isActive: provider.activeNavItem == NavItem.agent,
                       isCollapsed: !showExpanded,
@@ -208,7 +209,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       },
                     ),
                     _SidebarItem(
-                      label: 'Dashboard',
+                      label: l10n.dashboard,
                       icon: LucideIcons.barChart3,
                       isActive: provider.activeNavItem == NavItem.dashboard,
                       isCollapsed: !showExpanded,
@@ -227,7 +228,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                   child: Row(
                     children: [
                       Text(
-                        'Project',
+                        l10n.project,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -357,7 +358,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                   ),
                                 ),
                                 Text(
-                                  'Personal Plan',
+                                  l10n.personalPlan,
                                   style: TextStyle(
                                     color: AppStyles.mTextSecondary,
                                     fontSize: 12,

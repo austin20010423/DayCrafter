@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../provider.dart';
 import '../../styles.dart';
+import '../../l10n/app_localizations.dart';
 import '../task_detail_dialog.dart';
 import '../add_task_dialog.dart';
 
@@ -76,13 +77,13 @@ class DayView extends StatelessWidget {
                 AddTaskDialog.show(context, initialDate: provider.selectedDate),
             icon: const Icon(LucideIcons.plus, size: 20),
             color: AppStyles.mPrimary,
-            tooltip: 'Add Task',
+            tooltip: AppLocalizations.of(context)!.addTask,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
           ),
           const SizedBox(width: 8),
           // View toggle and close buttons on the right
-          _buildViewToggleCompact(provider),
+          _buildViewToggleCompact(context, provider),
           const SizedBox(width: 8),
           IconButton(
             onPressed: () => provider.setCalendarActive(false),
@@ -101,7 +102,13 @@ class DayView extends StatelessWidget {
     DayCrafterProvider provider,
     DateTime selectedDate,
   ) {
-    final monthYear = DateFormat('MMMM yyyy').format(selectedDate);
+    final localeString = provider.locale == AppLocale.chinese
+        ? 'zh_TW'
+        : 'en_US';
+    final monthYear = DateFormat(
+      'MMMM yyyy',
+      localeString,
+    ).format(selectedDate);
     final dayNum = selectedDate.day.toString();
 
     // Align with time grid: 60px for time column matching
@@ -547,9 +554,6 @@ class DayView extends StatelessWidget {
           // Mini Calendar
           _buildMiniCalendar(context, provider, selectedDate),
           const SizedBox(height: 16),
-          // AI Summary placeholder
-          _buildAISummary(context),
-          const SizedBox(height: 16),
           // Tasks list
           _buildNextTask(context, provider, selectedDate),
         ],
@@ -639,55 +643,6 @@ class DayView extends StatelessWidget {
         ),
         rowHeight: 32,
         daysOfWeekHeight: 24,
-      ),
-    );
-  }
-
-  Widget _buildAISummary(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppStyles.mSurface,
-        borderRadius: AppStyles.bRadiusMedium,
-        border: Border.all(
-          color: AppStyles.mAccent.withValues(alpha: 0.3),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.sparkles, size: 18, color: AppStyles.mAccent),
-              const SizedBox(width: 8),
-              Text(
-                'AI Summary',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppStyles.mTextPrimary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No events scheduled for today. Use the Agent to plan your tasks!',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppStyles.mTextSecondary,
-              height: 1.4,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -811,26 +766,30 @@ class DayView extends StatelessWidget {
     );
   }
 
-  Widget _buildViewToggleCompact(DayCrafterProvider provider) {
+  Widget _buildViewToggleCompact(
+    BuildContext context,
+    DayCrafterProvider provider,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         _ViewToggleButton(
-          label: 'Day',
+          label: l10n.day,
           isActive: provider.currentCalendarView == CalendarViewType.day,
           onTap: () => provider.setCalendarView(CalendarViewType.day),
           compact: true,
         ),
         const SizedBox(width: 4),
         _ViewToggleButton(
-          label: 'Week',
+          label: l10n.week,
           isActive: provider.currentCalendarView == CalendarViewType.week,
           onTap: () => provider.setCalendarView(CalendarViewType.week),
           compact: true,
         ),
         const SizedBox(width: 4),
         _ViewToggleButton(
-          label: 'Month',
+          label: l10n.month,
           isActive: provider.currentCalendarView == CalendarViewType.month,
           onTap: () => provider.setCalendarView(CalendarViewType.month),
           compact: true,

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:provider/provider.dart';
+import '../provider.dart';
 import '../styles.dart';
+import '../l10n/app_localizations.dart';
 import 'search_overlay.dart';
-import 'settings_dialog.dart';
 
 class Header extends StatelessWidget {
   final String? activeProjectName;
@@ -14,11 +16,13 @@ class Header extends StatelessWidget {
   }
 
   void _openSettings(BuildContext context) {
-    SettingsDialog.show(context);
+    context.read<DayCrafterProvider>().setActiveNavItem(NavItem.settings);
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Container(
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -40,9 +44,9 @@ class Header extends StatelessWidget {
                 fontWeight: FontWeight.w300,
               ),
               children: [
-                const TextSpan(text: 'Workspaces / '),
+                TextSpan(text: '${l10n.workspaces} / '),
                 TextSpan(
-                  text: activeProjectName ?? 'Default',
+                  text: activeProjectName ?? l10n.defaultProject,
                   style: TextStyle(
                     color: AppStyles.mTextPrimary,
                     fontWeight: FontWeight.w600,
@@ -57,13 +61,13 @@ class Header extends StatelessWidget {
               _HeaderIconButton(
                 icon: LucideIcons.search,
                 onPressed: () => _openSearch(context),
-                tooltip: 'Search (⌘K)',
+                tooltip: l10n.searchShortcut,
               ),
               const SizedBox(width: 20),
               _HeaderIconButton(
                 icon: LucideIcons.settings,
                 onPressed: () => _openSettings(context),
-                tooltip: 'Settings',
+                tooltip: l10n.settings,
               ),
             ],
           ),

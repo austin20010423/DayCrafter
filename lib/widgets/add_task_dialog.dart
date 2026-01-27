@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../provider.dart';
 import '../styles.dart';
+import '../l10n/app_localizations.dart';
 
 /// Dialog for adding or editing a task manually
 class AddTaskDialog extends StatefulWidget {
@@ -226,6 +227,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 
   Widget _buildHeader() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -255,7 +257,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
           ),
           const SizedBox(width: 14),
           Text(
-            isEditing ? 'Edit Task' : 'Add New Task',
+            isEditing ? l10n.editTask : l10n.addNewTask,
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -274,11 +276,12 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 
   Widget _buildTaskNameField() {
+    final l10n = AppLocalizations.of(context)!;
     return TextFormField(
       controller: _taskNameController,
       decoration: InputDecoration(
-        labelText: 'Task Name',
-        hintText: 'Enter task name...',
+        labelText: l10n.taskName,
+        hintText: l10n.enterTaskName,
         prefixIcon: Icon(
           LucideIcons.fileText,
           color: AppStyles.mPrimary,
@@ -292,7 +295,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       ),
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
-          return 'Please enter a task name';
+          return l10n.pleaseEnterTaskName;
         }
         return null;
       },
@@ -300,12 +303,13 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 
   Widget _buildDescriptionField() {
+    final l10n = AppLocalizations.of(context)!;
     return TextFormField(
       controller: _descriptionController,
       maxLines: 2,
       decoration: InputDecoration(
-        labelText: 'Description (Optional)',
-        hintText: 'Add details...',
+        labelText: l10n.descriptionOptional,
+        hintText: l10n.addDetails,
         prefixIcon: Padding(
           padding: const EdgeInsets.only(bottom: 20),
           child: Icon(
@@ -337,10 +341,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
             const SizedBox(width: 12),
             Text(
               '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
-              style: TextStyle(
-                fontSize: 15,
-                color: AppStyles.mTextPrimary,
-              ),
+              style: TextStyle(fontSize: 15, color: AppStyles.mTextPrimary),
             ),
             const Spacer(),
             Icon(
@@ -355,6 +356,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 
   Widget _buildTimeSelectors() {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
         Expanded(
@@ -374,7 +376,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   Icon(LucideIcons.clock, color: AppStyles.mAccent, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    _startTime != null ? _formatTime(_startTime!) : 'Start',
+                    _startTime != null
+                        ? _formatTime(_startTime!)
+                        : l10n.startTime,
                     style: TextStyle(
                       fontSize: 14,
                       color: _startTime != null
@@ -412,7 +416,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   Icon(LucideIcons.clock, color: AppStyles.mAccent, size: 18),
                   const SizedBox(width: 8),
                   Text(
-                    _endTime != null ? _formatTime(_endTime!) : 'End',
+                    _endTime != null ? _formatTime(_endTime!) : l10n.endTime,
                     style: TextStyle(
                       fontSize: 14,
                       color: _endTime != null
@@ -430,11 +434,12 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 
   Widget _buildPrioritySelector() {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Priority',
+          l10n.priority,
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -496,6 +501,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   }
 
   Widget _buildFooter() {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -506,7 +512,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         children: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           const SizedBox(width: 12),
           ElevatedButton.icon(
@@ -515,7 +521,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
               isEditing ? LucideIcons.check : LucideIcons.plus,
               size: 18,
             ),
-            label: Text(isEditing ? 'Save Changes' : 'Add Task'),
+            label: Text(isEditing ? l10n.saveChanges : l10n.addTask),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppStyles.mPrimary,
               foregroundColor: Colors.white,

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../provider.dart';
 import '../../styles.dart';
+import '../../l10n/app_localizations.dart';
 import '../task_detail_dialog.dart';
 
 /// Week View - Shows 7-day columns with hourly time slots
@@ -52,9 +53,12 @@ class WeekView extends StatelessWidget {
     DateTime weekStart,
   ) {
     final weekEnd = weekStart.add(const Duration(days: 6));
-    final monthYear = DateFormat('MMM yyyy').format(weekStart);
+    final localeString = provider.locale == AppLocale.chinese
+        ? 'zh_TW'
+        : 'en_US';
+    final monthYear = DateFormat('MMM yyyy', localeString).format(weekStart);
     final dateRange =
-        '${DateFormat('d').format(weekStart)} - ${DateFormat('d').format(weekEnd)}';
+        '${DateFormat('d', localeString).format(weekStart)} - ${DateFormat('d', localeString).format(weekEnd)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -92,7 +96,7 @@ class WeekView extends StatelessWidget {
           ),
           const Spacer(),
           // View toggle buttons
-          _buildViewToggleCompact(provider),
+          _buildViewToggleCompact(context, provider),
           const SizedBox(width: 16),
           IconButton(
             onPressed: () => provider.setCalendarActive(false),
@@ -129,6 +133,9 @@ class WeekView extends StatelessWidget {
     final hourHeight = 60.0;
     final totalHeight = hoursCount * hourHeight;
     final today = DateTime.now();
+    final localeString = provider.locale == AppLocale.chinese
+        ? 'zh_TW'
+        : 'en_US';
 
     return Container(
       decoration: BoxDecoration(
@@ -175,7 +182,7 @@ class WeekView extends StatelessWidget {
                       child: Column(
                         children: [
                           Text(
-                            DateFormat('E').format(day),
+                            DateFormat('E', localeString).format(day),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -587,6 +594,7 @@ class WeekView extends StatelessWidget {
   }
 
   Widget _buildRightPanel(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final today = DateTime.now();
     final tomorrow = today.add(const Duration(days: 1));
 
@@ -595,7 +603,7 @@ class WeekView extends StatelessWidget {
         // Today's List
         Expanded(
           child: _TaskListCard(
-            title: "Today's List",
+            title: l10n.today,
             date: today,
             icon: LucideIcons.calendar,
           ),
@@ -604,7 +612,7 @@ class WeekView extends StatelessWidget {
         // Tomorrow's List
         Expanded(
           child: _TaskListCard(
-            title: "Tomorrow's List",
+            title: l10n.tomorrow,
             date: tomorrow,
             icon: LucideIcons.calendarPlus,
           ),
@@ -613,26 +621,30 @@ class WeekView extends StatelessWidget {
     );
   }
 
-  Widget _buildViewToggleCompact(DayCrafterProvider provider) {
+  Widget _buildViewToggleCompact(
+    BuildContext context,
+    DayCrafterProvider provider,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         _ViewToggleButton(
-          label: 'Day',
+          label: l10n.day,
           isActive: provider.currentCalendarView == CalendarViewType.day,
           onTap: () => provider.setCalendarView(CalendarViewType.day),
           compact: true,
         ),
         const SizedBox(width: 4),
         _ViewToggleButton(
-          label: 'Week',
+          label: l10n.week,
           isActive: provider.currentCalendarView == CalendarViewType.week,
           onTap: () => provider.setCalendarView(CalendarViewType.week),
           compact: true,
         ),
         const SizedBox(width: 4),
         _ViewToggleButton(
-          label: 'Month',
+          label: l10n.month,
           isActive: provider.currentCalendarView == CalendarViewType.month,
           onTap: () => provider.setCalendarView(CalendarViewType.month),
           compact: true,
@@ -696,7 +708,7 @@ class _TaskListCard extends StatelessWidget {
             child: tasks.isEmpty
                 ? Center(
                     child: Text(
-                      'No tasks',
+                      AppLocalizations.of(context)!.noTasks,
                       style: TextStyle(
                         fontSize: 12,
                         color: AppStyles.mTextSecondary,

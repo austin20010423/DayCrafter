@@ -12,6 +12,7 @@ import 'widgets/empty_state.dart';
 import 'widgets/chat_view.dart';
 import 'widgets/project_modal.dart';
 import 'widgets/calendar_view.dart';
+import 'widgets/settings_view.dart';
 import 'database/objectbox_service.dart';
 import 'services/embedding_service.dart';
 
@@ -85,7 +86,7 @@ class DayCrafterApp extends StatelessWidget {
       // Theme
       theme: AppStyles.getThemeData(),
 
-      home: const MainNavigator(),
+      home: const SelectionArea(child: MainNavigator()),
     );
   }
 }
@@ -133,27 +134,21 @@ class _MainLayoutState extends State<MainLayout> {
 
     return Scaffold(
       backgroundColor: AppStyles.mBackground,
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ClipRRect(
-          borderRadius: AppStyles.bRadiusLarge,
-          child: Row(
-            children: [
-              Sidebar(onAddProject: _showProjectModal),
-              Expanded(
-                child: Container(
-                  color: AppStyles.mSurface,
-                  child: Column(
-                    children: [
-                      Header(activeProjectName: activeProject?.name),
-                      Expanded(child: _buildMainContent(provider)),
-                    ],
-                  ),
-                ),
+      body: Row(
+        children: [
+          Sidebar(onAddProject: _showProjectModal),
+          Expanded(
+            child: Container(
+              color: AppStyles.mSurface,
+              child: Column(
+                children: [
+                  Header(activeProjectName: activeProject?.name),
+                  Expanded(child: _buildMainContent(provider)),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -162,6 +157,11 @@ class _MainLayoutState extends State<MainLayout> {
     // Show calendar when calendar is active
     if (provider.isCalendarActive) {
       return const CalendarView();
+    }
+
+    // Show settings when settings is active
+    if (provider.isSettingsActive) {
+      return const SettingsView();
     }
 
     if (provider.activeProjectId == null) {
