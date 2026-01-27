@@ -170,5 +170,14 @@
   "@personalPlan": {"description": "User plan label"},
   
   "about": "About",
-  "@about": {"description": "About section title"}
+  "@about": {"description": "About section title"},
+  
+  "account": "Account",
+  "@account": {"description": "Account section title"},
+  
+  "logout": "Logout",
+  "@logout": {"description": "Logout button"},
+  
+  "logoutConfirm": "Are you sure you want to logout?",
+  "@logoutConfirm": {"description": "Logout confirmation message"}
 }

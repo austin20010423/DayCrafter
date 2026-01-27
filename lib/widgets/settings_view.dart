@@ -29,6 +29,14 @@ class SettingsView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Account Section
+                      _buildSectionCard(
+                        title: l10n.account,
+                        icon: LucideIcons.user,
+                        child: _buildAccountSection(context, provider, l10n),
+                      ),
+                      const SizedBox(height: 24),
+
                       // Appearance Section
                       _buildSectionCard(
                         title: l10n.appearance,
@@ -56,6 +64,109 @@ class SettingsView extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountSection(
+    BuildContext context,
+    DayCrafterProvider provider,
+    AppLocalizations l10n,
+  ) {
+    return Column(
+      children: [
+        // User info
+        Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppStyles.mPrimary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  (provider.userName ?? 'U').substring(0, 1).toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppStyles.mPrimary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    provider.userName ?? 'User',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppStyles.mTextPrimary,
+                    ),
+                  ),
+                  Text(
+                    provider.currentUserEmail ?? '',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppStyles.mTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // Logout button
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _showLogoutConfirmation(context, provider, l10n),
+            icon: const Icon(LucideIcons.logOut, size: 18),
+            label: Text(l10n.logout),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showLogoutConfirmation(
+    BuildContext context,
+    DayCrafterProvider provider,
+    AppLocalizations l10n,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.logout),
+        content: Text(l10n.logoutConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.cancel),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              provider.logout();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Logout'),
           ),
         ],
       ),

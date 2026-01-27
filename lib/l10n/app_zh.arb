@@ -57,5 +57,8 @@
   "saveChanges": "儲存變更",
   "defaultProject": "預設",
   "personalPlan": "個人方案",
-  "about": "關於"
+  "about": "關於",
+  "account": "帳號",
+  "logout": "登出",
+  "logoutConfirm": "確定要登出嗎？"
 }

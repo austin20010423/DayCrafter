@@ -57,6 +57,8 @@ dependencies:
   path_provider: ^2.1.2
   # Emoji picker for project icons
   emoji_picker_flutter: ^2.2.0
+  # Crypto for password hashing
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

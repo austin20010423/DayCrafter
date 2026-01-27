@@ -180,4 +180,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get about => '關於';
+
+  @override
+  String get account => '帳號';
+
+  @override
+  String get logout => '登出';
+
+  @override
+  String get logoutConfirm => '確定要登出嗎？';
 }

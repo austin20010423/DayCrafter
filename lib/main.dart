@@ -5,7 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'provider.dart';
 import 'styles.dart';
-import 'widgets/name_entry.dart';
+import 'widgets/auth/login_screen.dart';
+import 'widgets/auth/register_screen.dart';
 import 'widgets/sidebar.dart';
 import 'widgets/header.dart';
 import 'widgets/empty_state.dart';
@@ -15,10 +16,6 @@ import 'widgets/calendar_view.dart';
 import 'widgets/settings_view.dart';
 import 'database/objectbox_service.dart';
 import 'services/embedding_service.dart';
-
-// package for testing purposes
-import 'package:shared_preferences/shared_preferences.dart';
-//delete above line when not needed
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,12 +41,6 @@ void main() async {
       .catchError((e) {
         print("⚠️ Embedding service initialization failed: $e");
       });
-
-  //start wipe code
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.clear(); // This deletes all saved names and projects!
-  print("⚠️ All data wiped for testing!");
-  // --- END OF WIPE CODE ---
 
   runApp(
     ChangeNotifierProvider(
@@ -91,15 +82,51 @@ class DayCrafterApp extends StatelessWidget {
   }
 }
 
-class MainNavigator extends StatelessWidget {
+class MainNavigator extends StatefulWidget {
   const MainNavigator({super.key});
+
+  @override
+  State<MainNavigator> createState() => _MainNavigatorState();
+}
+
+class _MainNavigatorState extends State<MainNavigator> {
+  bool _showRegister = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Check auth status on startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<DayCrafterProvider>().checkAuthStatus();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DayCrafterProvider>();
 
-    if (provider.userName == null) {
-      return const NameEntryScreen();
+    // Show auth screens if not logged in
+    if (!provider.isLoggedIn) {
+      if (_showRegister) {
+        return RegisterScreen(
+          onSwitchToLogin: () => setState(() => _showRegister = false),
+          onRegister: (email, password, name) async {
+            final error = await provider.register(
+              email: email,
+              password: password,
+              name: name,
+            );
+            return error;
+          },
+        );
+      } else {
+        return LoginScreen(
+          onSwitchToRegister: () => setState(() => _showRegister = true),
+          onLogin: (email, password) async {
+            return await provider.login(email: email, password: password);
+          },
+        );
+      }
     }
 
     return const MainLayout();

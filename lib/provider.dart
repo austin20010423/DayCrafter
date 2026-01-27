@@ -12,6 +12,7 @@ import 'database/objectbox_service.dart';
 import 'database/objectbox_entities.dart';
 import 'services/embedding_service.dart';
 import 'services/task_scheduler.dart';
+import 'services/local_auth_service.dart';
 
 /// Calendar view types
 enum CalendarViewType { day, week, month }
@@ -26,6 +27,11 @@ enum AppLocale { english, chinese }
 enum NavItem { calendar, agent, dashboard, settings }
 
 class DayCrafterProvider with ChangeNotifier {
+  // Auth state
+  final LocalAuthService _authService = LocalAuthService();
+  bool _isLoggedIn = false;
+  String? _currentUserEmail;
+
   String? _userName;
   List<Project> _projects = [];
   String? _activeProjectId;
@@ -110,6 +116,10 @@ class DayCrafterProvider with ChangeNotifier {
     }
   }
 
+  // Auth getters
+  bool get isLoggedIn => _isLoggedIn;
+  String? get currentUserEmail => _currentUserEmail;
+
   String? get userName => _userName;
   List<Project> get projects => _projects;
   String? get activeProjectId => _activeProjectId;
@@ -142,40 +152,8 @@ class DayCrafterProvider with ChangeNotifier {
   }
 
   Future<void> _loadInitialData() async {
-    // Wipe data on startup as requested
-    ObjectBoxService.instance.clearAllData();
-
-    final prefs = await SharedPreferences.getInstance();
-    _userName = prefs.getString('daycrafter_user_name');
-    final projectsJson = prefs.getString('daycrafter_projects');
-    if (projectsJson != null) {
-      final List<dynamic> decoded = jsonDecode(projectsJson);
-      _projects = decoded.map((p) => Project.fromJson(p)).toList();
-
-      // Ensure every project has a color assigned (backfill older projects)
-      final usedColors = _projects
-          .where((p) => p.colorHex != null)
-          .map((p) => p.colorHex!)
-          .toSet();
-      _projects = _projects.map((proj) {
-        if (proj.colorHex == null) {
-          final color = _palette.firstWhere(
-            (c) => !usedColors.contains(c),
-            orElse: () => _palette[0],
-          );
-          usedColors.add(color);
-          return proj.copyWith(colorHex: color);
-        }
-        return proj;
-      }).toList();
-    }
-
-    // Load changelogs for token-efficient LLM context
-    await _loadChangelogs();
-
-    // Load theme and locale settings
+    // Load theme and locale settings (available before login)
     await _loadSettings();
-
     notifyListeners();
   }
 
@@ -191,10 +169,100 @@ class DayCrafterProvider with ChangeNotifier {
     );
   }
 
+  // ============ Authentication Methods ============
+
+  /// Check if user is logged in on app start
+  Future<void> checkAuthStatus() async {
+    final user = await _authService.getCurrentUser();
+    if (user != null) {
+      _isLoggedIn = true;
+      _currentUserEmail = user['email'];
+      _userName = user['name'];
+      notifyListeners();
+    }
+  }
+
+  /// Register a new account
+  Future<String?> register({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    final error = await _authService.register(
+      email: email,
+      password: password,
+      name: name,
+    );
+
+    if (error == null) {
+      // Auto-login after successful registration
+      await login(email: email, password: password);
+    }
+
+    return error;
+  }
+
+  /// Login with email and password
+  Future<bool> login({required String email, required String password}) async {
+    final user = await _authService.login(email: email, password: password);
+
+    if (user != null) {
+      _isLoggedIn = true;
+      _currentUserEmail = user['email'];
+      _userName = user['name'];
+
+      // Reset to default page (Agent)
+      _activeNavItem = NavItem.agent;
+
+      // Load user-specific data
+      await _loadUserData();
+
+      notifyListeners();
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Logout current user
+  Future<void> logout() async {
+    await _authService.logout();
+    _isLoggedIn = false;
+    _currentUserEmail = null;
+    _userName = null;
+    _projects = [];
+    _activeProjectId = null;
+    _taskChangelogs = {};
+    notifyListeners();
+  }
+
+  /// Load user-specific data after login
+  Future<void> _loadUserData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userPrefix = _currentUserEmail ?? '';
+
+    // Load projects for this user
+    final projectsJson = prefs.getString('${userPrefix}_projects');
+    if (projectsJson != null) {
+      final List<dynamic> decoded = jsonDecode(projectsJson);
+      _projects = decoded.map((p) => Project.fromJson(p)).toList();
+    }
+
+    // Load changelogs for token-efficient LLM context
+    await _loadChangelogs();
+
+    // Load settings
+    await _loadSettings();
+  }
+
   Future<void> setUserName(String name) async {
     _userName = name.trim();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('daycrafter_user_name', _userName!);
+
+    // Also update in auth service
+    await _authService.updateUserName(name.trim());
+
     notifyListeners();
   }
 
