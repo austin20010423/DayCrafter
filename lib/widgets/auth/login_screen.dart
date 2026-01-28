@@ -5,11 +5,13 @@ import '../../styles.dart';
 /// Login screen for existing users
 class LoginScreen extends StatefulWidget {
   final VoidCallback onSwitchToRegister;
+  final VoidCallback? onForgotPassword;
   final Future<bool> Function(String email, String password) onLogin;
 
   const LoginScreen({
     super.key,
     required this.onSwitchToRegister,
+    this.onForgotPassword,
     required this.onLogin,
   });
 
@@ -210,6 +212,25 @@ class _LoginScreenState extends State<LoginScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 12),
+
+                  // Forgot Password Link
+                  if (widget.onForgotPassword != null)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: GestureDetector(
+                        onTap: widget.onForgotPassword,
+                        child: Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            color: AppStyles.mPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+
                   const SizedBox(height: 24),
 
                   // Login button

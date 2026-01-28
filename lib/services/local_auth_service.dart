@@ -139,6 +139,30 @@ class LocalAuthService {
     }
   }
 
+  /// Generate a verification code for the given email
+  /// In a real app, this would send an email. Here we just return a code.
+  Future<String?> generateVerificationCode(String email) async {
+    final normalizedEmail = email.toLowerCase().trim();
+    if (!await isEmailRegistered(normalizedEmail)) {
+      return null;
+    }
+    // Mock code generation (fixed for simplicity or random)
+    return '123456';
+  }
+
+  /// Reset password for a given email
+  Future<bool> resetPassword(String email, String newPassword) async {
+    final normalizedEmail = email.toLowerCase().trim();
+    final accounts = await _getAccounts();
+
+    final index = accounts.indexWhere((a) => a['email'] == normalizedEmail);
+    if (index == -1) return false;
+
+    accounts[index]['passwordHash'] = _hashPassword(newPassword);
+    await _saveAccounts(accounts);
+    return true;
+  }
+
   bool _isValidEmail(String email) {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }

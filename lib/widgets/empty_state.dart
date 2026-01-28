@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../styles.dart';
+import '../l10n/app_localizations.dart';
 
 class EmptyState extends StatelessWidget {
   final VoidCallback onAdd;
@@ -35,6 +36,7 @@ class EmptyState extends StatelessWidget {
           const SizedBox(height: 32),
           InkWell(
             onTap: onAdd,
+            mouseCursor: SystemMouseCursors.click,
             borderRadius: BorderRadius.circular(100),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -70,7 +72,7 @@ class EmptyState extends StatelessWidget {
                   ),
                   const SizedBox(width: 16),
                   Text(
-                    'Add new Project',
+                    AppLocalizations.of(context)!.addNewProject,
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w600,

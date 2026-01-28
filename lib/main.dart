@@ -7,6 +7,7 @@ import 'provider.dart';
 import 'styles.dart';
 import 'widgets/auth/login_screen.dart';
 import 'widgets/auth/register_screen.dart';
+import 'widgets/auth/forgot_password_screen.dart';
 import 'widgets/sidebar.dart';
 import 'widgets/header.dart';
 import 'widgets/empty_state.dart';
@@ -91,6 +92,7 @@ class MainNavigator extends StatefulWidget {
 
 class _MainNavigatorState extends State<MainNavigator> {
   bool _showRegister = false;
+  bool _showForgotPassword = false;
 
   @override
   void initState() {
@@ -155,14 +157,26 @@ class _MainNavigatorState extends State<MainNavigator> {
             return error;
           },
         );
-      } else {
-        return LoginScreen(
-          onSwitchToRegister: () => setState(() => _showRegister = true),
-          onLogin: (email, password) async {
-            return await provider.login(email: email, password: password);
-          },
+      }
+
+      if (_showForgotPassword) {
+        return Scaffold(
+          backgroundColor: AppStyles.mBackground,
+          body: Center(
+            child: ForgotPasswordScreen(
+              onBackToLogin: () => setState(() => _showForgotPassword = false),
+            ),
+          ),
         );
       }
+
+      return LoginScreen(
+        onSwitchToRegister: () => setState(() => _showRegister = true),
+        onForgotPassword: () => setState(() => _showForgotPassword = true),
+        onLogin: (email, password) async {
+          return await provider.login(email: email, password: password);
+        },
+      );
     }
 
     return const MainLayout();

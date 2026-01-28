@@ -189,4 +189,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logoutConfirm => 'Are you sure you want to logout?';
+
+  @override
+  String get color => 'Color';
+
+  @override
+  String get chooseIcon => 'Choose Icon';
+
+  @override
+  String get createProject => 'Create Project';
+
+  @override
+  String get projectNameHint => 'e.g. Q4 Marketing Campaign';
+
+  @override
+  String get addNewProject => 'Add New Project';
 }

@@ -213,6 +213,16 @@ class DayCrafterProvider with ChangeNotifier {
     return error;
   }
 
+  /// Request password reset code
+  Future<String?> requestPasswordResetCode(String email) async {
+    return _authService.generateVerificationCode(email);
+  }
+
+  /// Reset password
+  Future<bool> confirmPasswordReset(String email, String newPassword) async {
+    return _authService.resetPassword(email, newPassword);
+  }
+
   /// Login with email and password
   Future<bool> login({required String email, required String password}) async {
     final user = await _authService.login(email: email, password: password);

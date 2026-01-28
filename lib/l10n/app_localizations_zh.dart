@@ -189,4 +189,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get logoutConfirm => '確定要登出嗎？';
+
+  @override
+  String get color => '顏色';
+
+  @override
+  String get chooseIcon => '選擇圖示';
+
+  @override
+  String get createProject => '建立專案';
+
+  @override
+  String get projectNameHint => '例如：Q4 行銷活動';
+
+  @override
+  String get addNewProject => '新增專案';
 }

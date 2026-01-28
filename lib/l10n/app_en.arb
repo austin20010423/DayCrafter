@@ -179,5 +179,20 @@
   "@logout": {"description": "Logout button"},
   
   "logoutConfirm": "Are you sure you want to logout?",
-  "@logoutConfirm": {"description": "Logout confirmation message"}
+  "@logoutConfirm": {"description": "Logout confirmation message"},
+  
+  "color": "Color",
+  "@color": {"description": "Color label"},
+  
+  "chooseIcon": "Choose Icon",
+  "@chooseIcon": {"description": "Choose Icon label"},
+  
+  "createProject": "Create Project",
+  "@createProject": {"description": "Create Project button"},
+  
+  "projectNameHint": "e.g. Q4 Marketing Campaign",
+  "@projectNameHint": {"description": "Project name hint"},
+
+  "addNewProject": "Add New Project",
+  "@addNewProject": {"description": "Button to add a new project"}
 }

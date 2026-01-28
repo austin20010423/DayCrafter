@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import '../styles.dart';
+import '../l10n/app_localizations.dart';
 
 /// Data class to hold project creation result
 class ProjectCreationData {
@@ -71,7 +72,7 @@ class _ProjectModalState extends State<ProjectModal> {
                       _buildEmojiButton(),
                       const SizedBox(width: 16),
                       Text(
-                        'New Project',
+                        AppLocalizations.of(context)!.newProject,
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -91,14 +92,14 @@ class _ProjectModalState extends State<ProjectModal> {
               const SizedBox(height: 24),
 
               // Project Name
-              _buildSectionLabel('Project Name'),
+              _buildSectionLabel(AppLocalizations.of(context)!.projectName),
               const SizedBox(height: 8),
               TextField(
                 controller: _controller,
                 autofocus: !_showEmojiPicker,
                 style: TextStyle(color: AppStyles.mTextPrimary),
                 decoration: InputDecoration(
-                  hintText: 'e.g. Q4 Marketing Campaign',
+                  hintText: AppLocalizations.of(context)!.projectNameHint,
                   hintStyle: TextStyle(
                     color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
                   ),
@@ -118,14 +119,14 @@ class _ProjectModalState extends State<ProjectModal> {
               const SizedBox(height: 20),
 
               // Color Selection
-              _buildSectionLabel('Color'),
+              _buildSectionLabel(AppLocalizations.of(context)!.color),
               const SizedBox(height: 10),
               _buildColorPicker(),
               const SizedBox(height: 20),
 
               // Emoji Picker (expandable)
               if (_showEmojiPicker) ...[
-                _buildSectionLabel('Choose Icon'),
+                _buildSectionLabel(AppLocalizations.of(context)!.chooseIcon),
                 const SizedBox(height: 10),
                 _buildEmojiPickerWidget(),
                 const SizedBox(height: 16),
@@ -144,7 +145,7 @@ class _ProjectModalState extends State<ProjectModal> {
                         ),
                       ),
                       child: Text(
-                        'Cancel',
+                        AppLocalizations.of(context)!.cancel,
                         style: TextStyle(
                           color: AppStyles.mTextSecondary,
                           fontWeight: FontWeight.w600,
@@ -174,9 +175,9 @@ class _ProjectModalState extends State<ProjectModal> {
                             style: const TextStyle(fontSize: 16),
                           ),
                           const SizedBox(width: 8),
-                          const Text(
-                            'Create Project',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                          Text(
+                            AppLocalizations.of(context)!.createProject,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -192,53 +193,61 @@ class _ProjectModalState extends State<ProjectModal> {
   }
 
   Widget _buildEmojiButton() {
-    return GestureDetector(
-      onTap: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: _colors[_selectedColorIndex].withValues(alpha: 0.25),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: _showEmojiPicker
-                ? _colors[_selectedColorIndex]
-                : _colors[_selectedColorIndex].withValues(alpha: 0.5),
-            width: 2,
-          ),
-          boxShadow: _showEmojiPicker
-              ? [
-                  BoxShadow(
-                    color: _colors[_selectedColorIndex].withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Text(_selectedEmoji, style: const TextStyle(fontSize: 26)),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 52,
+          height: 52,
+          decoration: BoxDecoration(
+            color: _colors[_selectedColorIndex].withValues(alpha: 0.25),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _showEmojiPicker
+                  ? _colors[_selectedColorIndex]
+                  : _colors[_selectedColorIndex].withValues(alpha: 0.5),
+              width: 2,
             ),
-            Positioned(
-              right: 4,
-              bottom: 4,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: AppStyles.mSurface,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _showEmojiPicker ? Icons.keyboard_arrow_up : Icons.edit,
-                  size: 12,
-                  color: AppStyles.mTextSecondary,
+            boxShadow: _showEmojiPicker
+                ? [
+                    BoxShadow(
+                      color: _colors[_selectedColorIndex].withValues(
+                        alpha: 0.3,
+                      ),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Stack(
+            children: [
+              Center(
+                child: Text(
+                  _selectedEmoji,
+                  style: const TextStyle(fontSize: 26),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                right: 4,
+                bottom: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: AppStyles.mSurface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _showEmojiPicker ? Icons.keyboard_arrow_up : Icons.edit,
+                    size: 12,
+                    color: AppStyles.mTextSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -261,31 +270,34 @@ class _ProjectModalState extends State<ProjectModal> {
       runSpacing: 10,
       children: List.generate(_colors.length, (index) {
         final isSelected = index == _selectedColorIndex;
-        return GestureDetector(
-          onTap: () => setState(() => _selectedColorIndex = index),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _colors[index],
-              borderRadius: BorderRadius.circular(10),
-              border: isSelected
-                  ? Border.all(color: Colors.white, width: 3)
-                  : null,
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: _colors[index].withValues(alpha: 0.5),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedColorIndex = index),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _colors[index],
+                borderRadius: BorderRadius.circular(10),
+                border: isSelected
+                    ? Border.all(color: Colors.white, width: 3)
+                    : null,
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: _colors[index].withValues(alpha: 0.5),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, color: Colors.white, size: 18)
                   : null,
             ),
-            child: isSelected
-                ? const Icon(Icons.check, color: Colors.white, size: 18)
-                : null,
           ),
         );
       }),

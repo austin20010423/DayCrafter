@@ -457,6 +457,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Are you sure you want to logout?'**
   String get logoutConfirm;
+
+  /// Color label
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get color;
+
+  /// Choose Icon label
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Icon'**
+  String get chooseIcon;
+
+  /// Create Project button
+  ///
+  /// In en, this message translates to:
+  /// **'Create Project'**
+  String get createProject;
+
+  /// Project name hint
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Q4 Marketing Campaign'**
+  String get projectNameHint;
+
+  /// Button to add a new project
+  ///
+  /// In en, this message translates to:
+  /// **'Add New Project'**
+  String get addNewProject;
 }
 
 class _AppLocalizationsDelegate
