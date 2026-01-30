@@ -316,47 +316,50 @@ class TaskDetailDialog extends StatelessWidget {
             label: Text('Edit'),
             style: TextButton.styleFrom(foregroundColor: AppStyles.mPrimary),
           ),
-          Row(
-            children: [
-              // Toggle completion button
-              TextButton.icon(
-                onPressed: () {
-                  final provider = context.read<DayCrafterProvider>();
-                  final taskId = task['id']?.toString();
-                  if (taskId != null) {
-                    provider.toggleTaskCompletion(taskId);
-                  }
-                  Navigator.of(context).pop();
-                },
-                icon: Icon(
-                  isCompleted ? LucideIcons.x : LucideIcons.check,
-                  size: 18,
-                ),
-                label: Text(isCompleted ? 'Incomplete' : 'Complete'),
-                style: TextButton.styleFrom(
-                  foregroundColor: isCompleted
-                      ? AppStyles.mTextSecondary
-                      : AppStyles.mAccent,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Close button
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppStyles.mPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // Toggle completion button
+                TextButton.icon(
+                  onPressed: () {
+                    final provider = context.read<DayCrafterProvider>();
+                    final taskId = task['id']?.toString();
+                    if (taskId != null) {
+                      provider.toggleTaskCompletion(taskId);
+                    }
+                    Navigator.of(context).pop();
+                  },
+                  icon: Icon(
+                    isCompleted ? LucideIcons.x : LucideIcons.check,
+                    size: 18,
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                  label: Text(isCompleted ? 'Incomplete' : 'Complete'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: isCompleted
+                        ? AppStyles.mTextSecondary
+                        : AppStyles.mAccent,
                   ),
                 ),
-                child: Text('Close'),
-              ),
-            ],
+                const SizedBox(width: 8),
+                // Close button
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppStyles.mPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text('Close'),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -695,6 +695,9 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Widget _buildTaskCards(List<Map<String, dynamic>> tasks, String messageId) {
+    final provider = context.read<DayCrafterProvider>();
+    final isLatest = provider.isLatestTaskMessage(messageId);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -773,92 +776,91 @@ class _ChatViewState extends State<ChatView> {
           }).toList(),
         ),
         const SizedBox(height: 12),
-        // Click here to edit button and Done button
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _sidebarTasks = tasks;
-                  _sidebarMessageId = messageId;
-                  _isSidebarOpen = true;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppStyles.mPrimary.withValues(alpha: 0.1),
-                  borderRadius: AppStyles.bRadiusMedium,
-                  border: Border.all(
-                    color: AppStyles.mPrimary.withValues(alpha: 0.3),
+        // Click here to edit button and Done button (only show for latest tasks)
+        if (isLatest)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _sidebarTasks = tasks;
+                    _sidebarMessageId = messageId;
+                    _isSidebarOpen = true;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
                   ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      LucideIcons.edit3,
-                      size: 16,
-                      color: AppStyles.mPrimary,
+                  decoration: BoxDecoration(
+                    color: AppStyles.mPrimary.withValues(alpha: 0.1),
+                    borderRadius: AppStyles.bRadiusMedium,
+                    border: Border.all(
+                      color: AppStyles.mPrimary.withValues(alpha: 0.3),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Click here to edit',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.edit3,
+                        size: 16,
                         color: AppStyles.mPrimary,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Done button to submit tasks to calendar
-            GestureDetector(
-              onTap: () {
-                _submitTasksToCalendar(tasks, messageId);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppStyles.mAccent.withValues(alpha: 0.15),
-                  borderRadius: AppStyles.bRadiusMedium,
-                  border: Border.all(
-                    color: AppStyles.mAccent.withValues(alpha: 0.4),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Click here to edit',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppStyles.mPrimary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      LucideIcons.checkCircle,
-                      size: 16,
-                      color: AppStyles.mAccent,
+              ),
+              const SizedBox(width: 12),
+              // Done button to submit tasks to calendar
+              GestureDetector(
+                onTap: () => _submitTasksToCalendar(tasks, messageId),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppStyles.mAccent.withValues(alpha: 0.15),
+                    borderRadius: AppStyles.bRadiusMedium,
+                    border: Border.all(
+                      color: AppStyles.mAccent.withValues(alpha: 0.4),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Done',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.checkCircle,
+                        size: 16,
                         color: AppStyles.mAccent,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        'Done',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AppStyles.mAccent,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }
@@ -1070,17 +1072,13 @@ class _ChatViewState extends State<ChatView> {
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppStyles.mBackground,
-              borderRadius: AppStyles.bRadiusSmall,
-            ),
-            child: Icon(
-              LucideIcons.sparkles,
-              size: 20,
-              color: AppStyles.mPrimary,
+          ClipRRect(
+            borderRadius: AppStyles.bRadiusSmall,
+            child: Image.asset(
+              'assets/images/logo.jpg',
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
             ),
           ),
           const SizedBox(width: 16),

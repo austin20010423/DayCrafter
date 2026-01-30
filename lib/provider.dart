@@ -147,6 +147,10 @@ class DayCrafterProvider with ChangeNotifier {
   // Format: "v1: Created 5 tasks (2 high, 2 med, 1 low) | v2: Adjusted due dates | v3: Added 2 tasks"
   Map<String, String> _taskChangelogs = {};
 
+  // Store raw MCP API responses per project so the agent/system can remember them
+  // Format: { projectId: [ { 'id': '<mcp-id>', 'result': <raw-result> }, ... ] }
+  Map<String, List<Map<String, dynamic>>> _mcpResponses = {};
+
   // A small palette of colors (hex strings) for projects
   final List<String> _palette = [
     '#FF6B6B', // Red
@@ -386,6 +390,9 @@ class DayCrafterProvider with ChangeNotifier {
 
     // Load changelogs for token-efficient LLM context
     await _loadChangelogs();
+
+    // Load stored MCP responses so agent/system memory includes API outputs
+    await _loadMcpResponses();
 
     // Load settings
     await _loadSettings();
@@ -801,12 +808,45 @@ class DayCrafterProvider with ChangeNotifier {
         }
       }
 
-      // Get token-efficient changelog
+      // Get token-efficient changelog and previous MCP responses
       final projectId = _activeProjectId ?? '';
       final changelog = _taskChangelogs[projectId] ?? '';
+      final previousMcpResponses = _mcpResponses[projectId] ?? [];
 
-      // Build system prompt with MANDATORY MCP tool usage
-      String systemPrompt = '''You are a Project Manager assistant.
+      // Build comprehensive agent context with full history
+      String agentContextSection = '';
+      if (previousMcpResponses.isNotEmpty) {
+        agentContextSection += '\n📊 PREVIOUS API RESPONSES (from this session):\n';
+        for (int i = 0; i < previousMcpResponses.length && i < 5; i++) {
+          final response = previousMcpResponses[i];
+          final timestamp = response['timestamp'] as String?;
+          agentContextSection += '  Response ${i + 1} (${timestamp ?? "timestamp"}):';
+          
+          // Include summarized result for context
+          try {
+            final result = response['result'];
+            if (result is List && result.isNotEmpty) {
+              final taskCount = result.length;
+              agentContextSection += ' $taskCount tasks created\n';
+            } else if (result is String) {
+              agentContextSection += ' ${result.length > 100 ? result.substring(0, 100) + "..." : result}\n';
+            } else {
+              agentContextSection += ' API response received\n';
+            }
+          } catch (_) {
+            agentContextSection += ' API response received\n';
+          }
+        }
+      }
+
+      // Build system prompt with MANDATORY MCP tool usage and agent context
+      String systemPrompt = '''You are a Project Manager assistant with FULL ACCESS to the entire project history.
+
+PROJECT MEMORY - YOU HAVE COMPLETE CONTEXT:
+✓ All previous messages in this thread
+✓ All previous API responses and generated tasks
+✓ Complete chat history for this project
+✓ Full task changelog and planning history$agentContextSection
 
 ⚠️  CRITICAL INSTRUCTION - READ CAREFULLY:
 You MUST use the MCP tool "task_and_schedule_planer" for ALL of these requests:
@@ -816,11 +856,12 @@ You MUST use the MCP tool "task_and_schedule_planer" for ALL of these requests:
 - "organize this" → USE MCP TOOL
 - "plan this assignment" → USE MCP TOOL
 - "break this down" → USE MCP TOOL
+- "modify tasks" → USE MCP TOOL (if asking to reorganize/refine existing plans)
 - ANY task-related request → USE MCP TOOL
 
 REQUIRED RESPONSE FORMAT:
 Always respond with BOTH:
-1. Your analysis/explanation
+1. Your analysis/explanation (reference previous context if relevant)
 2. The MCP tool markers (MUST HAVE):
 
 [USE_MCP_TOOL: task_and_schedule_planer]
@@ -829,24 +870,62 @@ Always respond with BOTH:
 Project: "${activeProject?.name}"''';
 
       if (changelog.isNotEmpty) {
-        systemPrompt += '\nPrevious tasks: $changelog';
+        systemPrompt += '\nTask Changelog: $changelog';
       }
 
       systemPrompt += '''
 
-REMEMBER: Use the tool EVERY TIME for planning/scheduling/task requests!''';
+IMPORTANT BEHAVIORS:
+1. Reference previous API responses and tasks when relevant
+2. Remember all previous user requests in this thread
+3. Build upon previous plans rather than starting from scratch
+4. Use the MCP tool EVERY TIME for planning/scheduling/task requests!
+5. Include context from chat history in your responses''';
 
       if (_cancelledRequests.contains(requestId)) {
         debugPrint('Request $requestId cancelled before API call');
         return;
       }
 
+      // Build full conversation history including chat messages and API responses
+      final messages = <Map<String, dynamic>>[];
+      messages.add({"role": "system", "content": systemPrompt});
+
+      // Add previous messages from thread history for full context
+      if (_activeProjectId != null) {
+        final project = activeProject;
+        if (project != null && project.messages.isNotEmpty) {
+          // Include recent messages (token-efficient)
+          final recentMessages = project.messages.length > 10
+              ? project.messages.sublist(project.messages.length - 10)
+              : project.messages;
+          
+          for (final msg in recentMessages) {
+            final role = msg.role == MessageRole.user ? 'user' : 'assistant';
+            
+            // If message has tasks, include a summary
+            if (msg.tasks != null && msg.tasks!.isNotEmpty) {
+              final taskNames = msg.tasks!
+                  .map((t) => t['TaskName'] ?? 'Task')
+                  .take(5)
+                  .join(', ');
+              messages.add({
+                'role': role,
+                'content': '${msg.text}\n[Tasks created: $taskNames]'
+              });
+            } else if (msg.text.isNotEmpty) {
+              messages.add({'role': role, 'content': msg.text});
+            }
+          }
+        }
+      }
+
+      // Add current user message
+      messages.add({"role": "user", "content": userMessage});
+
       final request = ChatCompleteText(
         model: GptTurboChatModel(),
-        messages: [
-          {"role": "system", "content": systemPrompt},
-          {"role": "user", "content": userMessage},
-        ],
+        messages: messages,
         maxToken: 1000,
       );
 
@@ -959,15 +1038,18 @@ REMEMBER: Use the tool EVERY TIME for planning/scheduling/task requests!''';
     debugPrint('Starting MCP task API call...');
     try {
       // Call the MCP endpoint using the new /mcp/invoke pattern
-      final result = await callMcpInvoke(
+      final invokeResult = await callMcpInvoke(
         baseUrl: _mcpBaseUrl,
         tool: _mcpTool,
         taskText: userText,
         timeout: const Duration(seconds: 300),
       );
 
+      // Keep raw result for system memory and parsing
+      final rawResult = invokeResult['result'];
+
       // Parse the result into tasks list
-      final tasks = _parseMcpResult(result['result']);
+      final tasks = _parseMcpResult(rawResult);
       if (tasks.isEmpty) {
         debugPrint('⚠️ MCP returned empty tasks');
         return null;
@@ -1029,6 +1111,29 @@ REMEMBER: Use the tool EVERY TIME for planning/scheduling/task requests!''';
         );
         _projects[projectIndex] = updatedProject;
         await _saveProjects();
+
+        // Persist each new message into ObjectBox so embeddings/search include them
+        for (final msg in messagesToAdd) {
+          try {
+            await _saveMessageToObjectBox(msg, _activeProjectId!);
+          } catch (e) {
+            debugPrint('Failed to save task message to ObjectBox: $e');
+          }
+        }
+
+        // Save raw MCP response into system memory store for the project
+          try {
+          final pid = _activeProjectId ?? _projects[projectIndex].id;
+          _mcpResponses.putIfAbsent(pid, () => []);
+          _mcpResponses[pid]!.add({
+            'id': invokeResult['id'],
+            'result': rawResult,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          await _saveMcpResponses();
+        } catch (e) {
+          debugPrint('Failed to persist MCP raw response: $e');
+        }
 
         // Update token-efficient changelog
         _updateTaskChangelog(_activeProjectId!, tasks);
@@ -1431,6 +1536,73 @@ Respond naturally as if discussing the plan update with the project team.''';
     if (data != null) {
       _taskChangelogs = Map<String, String>.from(jsonDecode(data));
     }
+  }
+
+  /// Persist raw MCP responses so the agent can recall API outputs later
+  Future<void> _saveMcpResponses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _currentUserEmail != null
+        ? '${_currentUserEmail}_mcp_responses'
+        : 'daycrafter_mcp_responses';
+    try {
+      await prefs.setString(key, jsonEncode(_mcpResponses));
+    } catch (e) {
+      debugPrint('Failed to save MCP responses: $e');
+    }
+  }
+
+  Future<void> _loadMcpResponses() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = _currentUserEmail != null
+        ? '${_currentUserEmail}_mcp_responses'
+        : 'daycrafter_mcp_responses';
+    try {
+      final data = prefs.getString(key);
+      if (data != null) {
+        final decoded = jsonDecode(data) as Map<String, dynamic>;
+        _mcpResponses = decoded.map((k, v) => MapEntry(
+            k, (v as List).map((e) => Map<String, dynamic>.from(e)).toList()));
+      }
+    } catch (e) {
+      debugPrint('Failed to load MCP responses: $e');
+      _mcpResponses = {};
+    }
+  }
+
+  /// Check if a message is the latest task message in the active project
+  bool isLatestTaskMessage(String messageId) {
+    if (_activeProjectId == null) return false;
+
+    final project = activeProject;
+    if (project == null) return false;
+
+    // Find the last message with tasks
+    for (int i = project.messages.length - 1; i >= 0; i--) {
+      final msg = project.messages[i];
+      if (msg.tasks != null && msg.tasks!.isNotEmpty) {
+        return msg.id == messageId;
+      }
+    }
+
+    return false;
+  }
+
+  /// Get the latest task message in the active project
+  Message? getLatestTaskMessage() {
+    if (_activeProjectId == null) return null;
+
+    final project = activeProject;
+    if (project == null) return null;
+
+    // Find the last message with tasks
+    for (int i = project.messages.length - 1; i >= 0; i--) {
+      final msg = project.messages[i];
+      if (msg.tasks != null && msg.tasks!.isNotEmpty) {
+        return msg;
+      }
+    }
+
+    return null;
   }
 
   /// Deletes a project and cleans up its changelog
