@@ -23,7 +23,7 @@ class LightMorandiTheme {
   static const Color accent = Color(0xFFD6BDBC); // Dusty Rose
   static const Color textPrimary = Color(0xFF5A6268); // Dark Grey Muted
   static const Color textSecondary = Color(0xFF8E979F); // Muted Slate
-  static const Color sidebarBg = Color(0xFF4A555C); // Deep Muted Slate
+  static const Color sidebarBg = Color(0xFF6B7580); // Darker Muted Grey
 }
 
 /// App-wide styles that respond to theme changes

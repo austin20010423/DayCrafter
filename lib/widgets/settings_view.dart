@@ -59,6 +59,27 @@ class SettingsView extends StatelessWidget {
                         icon: LucideIcons.info,
                         child: _buildAboutSection(l10n),
                       ),
+                      const SizedBox(height: 32),
+
+                      // Logout Button at bottom
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () =>
+                              _showLogoutConfirmation(context, provider, l10n),
+                          icon: const Icon(LucideIcons.logOut, size: 18),
+                          label: Text(l10n.logout),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
                     ],
                   ),
                 ),
@@ -75,70 +96,44 @@ class SettingsView extends StatelessWidget {
     DayCrafterProvider provider,
     AppLocalizations l10n,
   ) {
-    return Column(
+    return Row(
       children: [
-        // User info
-        Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppStyles.mPrimary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppStyles.mPrimary.withValues(alpha: 0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              (provider.userName ?? 'U').substring(0, 1).toUpperCase(),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppStyles.mPrimary,
               ),
-              child: Center(
-                child: Text(
-                  (provider.userName ?? 'U').substring(0, 1).toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppStyles.mPrimary,
-                  ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                provider.userName ?? 'User',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: AppStyles.mTextPrimary,
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    provider.userName ?? 'User',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppStyles.mTextPrimary,
-                    ),
-                  ),
-                  Text(
-                    provider.currentUserEmail ?? '',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppStyles.mTextSecondary,
-                    ),
-                  ),
-                ],
+              Text(
+                provider.currentUserEmail ?? '',
+                style: TextStyle(fontSize: 13, color: AppStyles.mTextSecondary),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        // Logout button
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () => _showLogoutConfirmation(context, provider, l10n),
-            icon: const Icon(LucideIcons.logOut, size: 18),
-            label: Text(l10n.logout),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
+            ],
           ),
         ),
       ],
@@ -305,14 +300,14 @@ class SettingsView extends StatelessWidget {
       children: [
         Row(
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppStyles.mPrimary,
-                borderRadius: BorderRadius.circular(12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.asset(
+                'assets/images/logo.jpg',
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
               ),
-              child: const Icon(LucideIcons.zap, size: 24, color: Colors.white),
             ),
             const SizedBox(width: 16),
             Column(

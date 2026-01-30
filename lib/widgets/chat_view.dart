@@ -22,8 +22,8 @@ class _ChatViewState extends State<ChatView> {
   final _scrollController = ScrollController();
   ViewMode _viewMode = ViewMode.defaultMode;
   String? _attachedFile;
-  String? _attachedFilePath; // Full path for voice file transcription
-  bool _isVoiceFile = false; // Track if attached file is a voice file
+  String? _attachedFilePath;
+  String? _attachedFileType; // 'text' | 'voice' | 'recording'
   int _timerSeconds = 0;
   Timer? _timer;
 
@@ -70,52 +70,45 @@ class _ChatViewState extends State<ChatView> {
   void _stopRecording(bool save) {
     _timer?.cancel();
     setState(() {
-      if (save) _attachedFile = "Audio Recording.wav";
+      if (save) {
+        _attachedFile = "Audio Recording.wav";
+        _attachedFileType = 'recording';
+        _attachedFilePath = null;
+      }
       _viewMode = ViewMode.defaultMode;
     });
   }
 
   Future<void> _handleSubmit() async {
     final text = _inputController.text.trim();
-    if (text.isEmpty && _attachedFile == null) return;
+    if (text.isEmpty) return;
 
     final provider = context.read<DayCrafterProvider>();
     if (provider.isLoading) return;
-
-    String content = text;
-
-    // If we have a voice file, transcribe it first
-    if (_attachedFile != null && _isVoiceFile && _attachedFilePath != null) {
-      // Show that we're transcribing
-      setState(() {});
-
-      final transcribedText = await provider.transcribeAudio(
-        _attachedFilePath!,
-      );
-      if (transcribedText != null && transcribedText.isNotEmpty) {
-        // Combine transcribed text with any typed text
-        if (text.isNotEmpty) {
-          content = '$text\n\n[Voice message]: $transcribedText';
-        } else {
-          content = transcribedText;
+    // Build attachments metadata to pass to provider, but do not inline file content in the stored message
+    List<Map<String, String>>? attachments;
+    if (_attachedFile != null) {
+      attachments = [
+        {
+          'name': _attachedFile ?? 'attachment',
+          'type': _attachedFileType ?? 'text',
+          if (_attachedFilePath != null) 'path': _attachedFilePath!,
         }
-      } else {
-        // Transcription failed, show error
-        if (text.isEmpty) {
-          content = '[Voice file attached but transcription failed]';
-        }
-      }
-    } else if (text.isEmpty && _attachedFile != null) {
-      // For document files, just mention the attachment
-      content = "Attached document: $_attachedFile";
+      ];
     }
 
-    provider.sendMessage(content, MessageRole.user);
+    // Display text should not include file contents; only indicate filename
+    String displayText = text;
+    if (_attachedFile != null) {
+      displayText = '$displayText\n\n[Attached: $_attachedFile]';
+    }
+
+    provider.sendMessage(displayText, MessageRole.user, attachments: attachments);
     _inputController.clear();
     setState(() {
       _attachedFile = null;
       _attachedFilePath = null;
-      _isVoiceFile = false;
+      _attachedFileType = null;
       _viewMode = ViewMode.defaultMode;
     });
     _scrollToBottom();
@@ -213,10 +206,7 @@ class _ChatViewState extends State<ChatView> {
 
     return Stack(
       children: [
-        CustomPaint(
-          size: Size.infinite,
-          painter: GridDotPainter(dotColor: AppStyles.mTextSecondary),
-        ),
+        Container(color: AppStyles.mBackground),
         _buildContent(project, userName, isInitialState, provider.isLoading),
         // Sidebar overlay
         if (_isSidebarOpen) ...[
@@ -322,37 +312,110 @@ class _ChatViewState extends State<ChatView> {
         allowMultiple: false,
       );
       if (result != null && result.files.isNotEmpty) {
-        setState(() {
-          _attachedFile = result.files.first.name;
-          _attachedFilePath =
-              result.files.first.path; // Store full path for transcription
-          _isVoiceFile = true;
-          _viewMode = ViewMode.defaultMode;
-        });
+        final file = result.files.first;
+        final path = file.path;
+        if (path != null) {
+          if (!mounted) return;
+          setState(() {
+            _attachedFile = file.name;
+            _attachedFilePath = path;
+            _attachedFileType = 'voice';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${file.name} attached. Waiting for your message.')),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Error picking voice file: $e');
     }
   }
 
-  Future<void> _pickDocumentFile() async {
+  Future<void> _pickTextFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'ppt', 'pptx'],
+        allowedExtensions: ['txt'],
         allowMultiple: false,
       );
       if (result != null && result.files.isNotEmpty) {
-        setState(() {
-          _attachedFile = result.files.first.name;
-          _attachedFilePath = result.files.first.path;
-          _isVoiceFile = false;
-          _viewMode = ViewMode.defaultMode;
-        });
+        final file = result.files.first;
+        final path = file.path;
+        if (path != null) {
+          if (!mounted) return;
+          setState(() {
+            _attachedFile = file.name;
+            _attachedFilePath = path;
+            _attachedFileType = 'text';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${file.name} attached. Waiting for your message.')),
+          );
+        }
       }
     } catch (e) {
-      debugPrint('Error picking document file: $e');
+      debugPrint('Error picking text file: $e');
     }
+  }
+
+  void _showUploadPopup() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: AppStyles.mSurface,
+        shape: RoundedRectangleBorder(borderRadius: AppStyles.bRadiusMedium),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 340),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Upload File',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppStyles.mTextPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _UploadOptionButton(
+                    icon: LucideIcons.music,
+                    label: 'Voice',
+                    subtitle: 'MP3, WAV, M4A',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _pickVoiceFile();
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  _UploadOptionButton(
+                    icon: LucideIcons.fileText,
+                    label: 'Text',
+                    subtitle: 'TXT files',
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _pickTextFile();
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: AppStyles.mTextSecondary),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildUploadView() {
@@ -435,9 +498,9 @@ class _ChatViewState extends State<ChatView> {
                         const SizedBox(width: 24),
                         _UploadOptionButton(
                           icon: LucideIcons.fileText,
-                          label: 'Document',
-                          subtitle: 'PDF, DOC, PPT',
-                          onTap: _pickDocumentFile,
+                          label: 'Text',
+                          subtitle: 'TXT files',
+                          onTap: _pickTextFile,
                         ),
                       ],
                     ),
@@ -496,17 +559,19 @@ class _ChatViewState extends State<ChatView> {
     return Column(
       children: [
         Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-            itemCount: project.messages.length + (isLoading ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == project.messages.length) {
-                return _buildLoadingBubble();
-              }
-              final msg = project.messages[index];
-              return _buildMessageBubble(msg);
-            },
+          child: SelectionArea(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+              itemCount: project.messages.length + (isLoading ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == project.messages.length) {
+                  return _buildLoadingBubble();
+                }
+                final msg = project.messages[index];
+                return _buildMessageBubble(msg);
+              },
+            ),
           ),
         ),
         Padding(
@@ -525,18 +590,16 @@ class _ChatViewState extends State<ChatView> {
         mainAxisAlignment: isUser
             ? MainAxisAlignment.end
             : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            Container(
-              decoration: BoxDecoration(
-                color: AppStyles.mBackground,
-                borderRadius: AppStyles.bRadiusSmall,
-              ),
-              padding: const EdgeInsets.all(8),
-              child: Icon(
-                LucideIcons.sparkles,
-                size: 20,
-                color: AppStyles.mPrimary,
+            ClipRRect(
+              borderRadius: AppStyles.bRadiusSmall,
+              child: Image.asset(
+                'assets/images/logo.jpg',
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
               ),
             ),
             const SizedBox(width: 16),
@@ -563,9 +626,9 @@ class _ChatViewState extends State<ChatView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Use markdown for AI responses, plain text for user messages
+                  // Use markdown for AI responses, selectable text for user messages
                   if (isUser)
-                    Text(
+                    SelectableText(
                       msg.text,
                       style: TextStyle(
                         color: Colors.white,
@@ -576,6 +639,7 @@ class _ChatViewState extends State<ChatView> {
                   else
                     MarkdownBody(
                       data: msg.text,
+                      selectable: true,
                       styleSheet: MarkdownStyleSheet(
                         p: TextStyle(
                           color: AppStyles.mTextPrimary,
@@ -616,7 +680,6 @@ class _ChatViewState extends State<ChatView> {
                         ),
                         listBullet: TextStyle(color: AppStyles.mTextPrimary),
                       ),
-                      selectable: true,
                     ),
                   if (msg.tasks != null && msg.tasks!.isNotEmpty) ...[
                     const SizedBox(height: 16),
@@ -1109,13 +1172,17 @@ class _ChatViewState extends State<ChatView> {
                   _InputActionButton(
                     icon: LucideIcons.paperclip,
                     label: 'Attach',
-                    onTap: () => setState(() => _viewMode = ViewMode.upload),
+                    onTap: _showUploadPopup,
                   ),
                   if (_attachedFile != null) ...[
                     const SizedBox(width: 12),
                     _AttachedFileTag(
                       fileName: _attachedFile!,
-                      onRemove: () => setState(() => _attachedFile = null),
+                      onRemove: () => setState(() {
+                        _attachedFile = null;
+                        _attachedFilePath = null;
+                        _attachedFileType = null;
+                      }),
                     ),
                   ],
                 ],
@@ -1128,15 +1195,25 @@ class _ChatViewState extends State<ChatView> {
                     size: 44,
                   ),
                   const SizedBox(width: 12),
-                  _IconButton(
-                    icon: LucideIcons.send,
-                    onTap: _handleSubmit,
-                    isPrimary: true,
-                    size: 44,
-                    enabled:
-                        _inputController.text.isNotEmpty ||
-                        _attachedFile != null,
-                  ),
+                  Builder(builder: (context) {
+                    final provider = context.watch<DayCrafterProvider>();
+                    if (provider.isLoading) {
+                      return _IconButton(
+                        icon: LucideIcons.x,
+                        onTap: () => context.read<DayCrafterProvider>().cancelCurrentRequest(),
+                        isDanger: true,
+                        size: 44,
+                        enabled: true,
+                      );
+                    }
+                    return _IconButton(
+                      icon: LucideIcons.send,
+                      onTap: _handleSubmit,
+                      isPrimary: true,
+                      size: 44,
+                      enabled: _inputController.text.isNotEmpty || _attachedFile != null,
+                    );
+                  }),
                 ],
               ),
             ],
@@ -1274,6 +1351,7 @@ class _IconButton extends StatelessWidget {
   final bool isPrimary;
   final bool enabled;
   final double size;
+  final bool isDanger;
 
   const _IconButton({
     required this.icon,
@@ -1281,16 +1359,21 @@ class _IconButton extends StatelessWidget {
     this.isPrimary = false,
     this.enabled = true,
     this.size = 56,
+    this.isDanger = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isPrimary
-        ? (enabled ? AppStyles.mPrimary : AppStyles.mBackground)
-        : AppStyles.mBackground.withValues(alpha: 0.4);
-    final iconColor = isPrimary
-        ? (enabled ? Colors.white : AppStyles.mTextSecondary)
-        : AppStyles.mTextPrimary;
+    final bgColor = isDanger
+        ? Colors.red
+        : (isPrimary
+            ? (enabled ? AppStyles.mPrimary : AppStyles.mBackground)
+            : AppStyles.mBackground.withValues(alpha: 0.4));
+    final iconColor = isDanger
+        ? Colors.white
+        : (isPrimary
+            ? (enabled ? Colors.white : AppStyles.mTextSecondary)
+            : AppStyles.mTextPrimary);
 
     return InkWell(
       onTap: enabled ? onTap : null,
@@ -1301,7 +1384,7 @@ class _IconButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: bgColor,
           shape: BoxShape.circle,
-          boxShadow: isPrimary && enabled
+          boxShadow: (isDanger || (isPrimary && enabled))
               ? [
                   BoxShadow(
                     color: bgColor.withValues(alpha: 0.3),
@@ -1804,8 +1887,8 @@ class _UploadOptionButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: AppStyles.bRadiusMedium,
       child: Container(
-        width: 180,
-        padding: const EdgeInsets.all(24),
+        width: 130,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppStyles.mBackground.withValues(alpha: 0.5),
           borderRadius: AppStyles.bRadiusMedium,
@@ -1817,27 +1900,27 @@ class _UploadOptionButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: AppStyles.mPrimary.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: AppStyles.mPrimary, size: 28),
+              child: Icon(icon, color: AppStyles.mPrimary, size: 22),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Text(
               label,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
                 color: AppStyles.mTextPrimary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               subtitle,
-              style: TextStyle(fontSize: 11, color: AppStyles.mTextSecondary),
+              style: TextStyle(fontSize: 10, color: AppStyles.mTextSecondary),
               textAlign: TextAlign.center,
             ),
           ],

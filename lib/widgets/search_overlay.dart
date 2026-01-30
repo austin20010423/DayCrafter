@@ -359,24 +359,18 @@ class _SearchOverlayState extends State<SearchOverlay>
   Widget _buildEmptyState() {
     return Column(
       children: [
-        const SizedBox(height: 20),
-        Icon(
-          LucideIcons.sparkles,
-          size: 40,
-          color: AppStyles.mPrimary.withValues(alpha: 0.4),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 40),
         Text(
-          'Semantic Search',
+          'Search',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
             color: AppStyles.mTextPrimary,
           ),
         ),
         const SizedBox(height: 8),
         Text(
-          'Find messages by meaning, not just keywords',
+          'Find messages or tasks by typing a description or keyword',
           style: TextStyle(fontSize: 13, color: AppStyles.mTextSecondary),
         ),
         const SizedBox(height: 24),

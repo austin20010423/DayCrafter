@@ -80,6 +80,8 @@ class MessageEntity {
 
   /// JSON-serialized tasks list
   String? tasksJson;
+  /// JSON-serialized attachments list (keeps small metadata like name/type/path)
+  String? attachmentsJson;
 
   /// Vector embedding for semantic search (1536 dimensions for OpenAI text-embedding-3-small)
   /// Using HNSW index for efficient approximate nearest neighbor search
@@ -97,6 +99,7 @@ class MessageEntity {
     required this.text,
     required this.timestamp,
     this.tasksJson,
+    this.attachmentsJson,
     this.embedding,
   });
 
@@ -108,6 +111,7 @@ class MessageEntity {
       text: message.text,
       timestamp: message.timestamp,
       tasksJson: message.tasks != null ? jsonEncode(message.tasks) : null,
+      attachmentsJson: message.attachments != null ? jsonEncode(message.attachments) : null,
     );
   }
 
@@ -120,6 +124,9 @@ class MessageEntity {
       timestamp: timestamp,
       tasks: tasksJson != null
           ? List<Map<String, dynamic>>.from(jsonDecode(tasksJson!))
+          : null,
+      attachments: attachmentsJson != null
+          ? List<Map<String, String>>.from(jsonDecode(attachmentsJson!))
           : null,
     );
   }

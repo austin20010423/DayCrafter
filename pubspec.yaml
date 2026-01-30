@@ -89,6 +89,7 @@ flutter:
   # Environment file for API keys
   assets:
     - .env
+    - assets/images/logo.jpg
 
   # To add assets to your application, add an assets section, like this:
 

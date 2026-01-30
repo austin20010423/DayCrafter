@@ -36,6 +36,20 @@ class LocalAuthService {
     return accounts.any((a) => a['email'] == email.toLowerCase());
   }
 
+  /// Get list of registered account summaries (email and name only)
+  /// Used for displaying account selector on login screen
+  Future<List<Map<String, String>>> getRegisteredAccounts() async {
+    final accounts = await _getAccounts();
+    return accounts
+        .map(
+          (a) => {
+            'email': a['email'] as String,
+            'name': (a['name'] as String?) ?? '',
+          },
+        )
+        .toList();
+  }
+
   /// Register a new account
   /// Returns null on success, error message on failure
   Future<String?> register({

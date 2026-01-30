@@ -6,6 +6,7 @@ class Message {
   final String text;
   final DateTime timestamp;
   final List<Map<String, dynamic>>? tasks;
+  final List<Map<String, String>>? attachments;
 
   Message({
     required this.id,
@@ -13,6 +14,7 @@ class Message {
     required this.text,
     required this.timestamp,
     this.tasks,
+    this.attachments,
   });
 
   Map<String, dynamic> toJson() {
@@ -22,6 +24,7 @@ class Message {
       'text': text,
       'timestamp': timestamp.toIso8601String(),
       'tasks': tasks,
+      'attachments': attachments,
     };
   }
 
@@ -33,6 +36,9 @@ class Message {
       timestamp: DateTime.parse(json['timestamp']),
       tasks: json['tasks'] != null
           ? List<Map<String, dynamic>>.from(json['tasks'])
+          : null,
+      attachments: json['attachments'] != null
+          ? List<Map<String, String>>.from(json['attachments'])
           : null,
     );
   }

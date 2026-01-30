@@ -133,17 +133,13 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       ),
                       const SizedBox(width: 12),
                       // Logo
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: AppStyles.mPrimary,
-                          borderRadius: AppStyles.bRadiusSmall,
-                        ),
-                        child: const Icon(
-                          LucideIcons.zap,
-                          size: 20,
-                          color: Colors.white,
+                      ClipRRect(
+                        borderRadius: AppStyles.bRadiusSmall,
+                        child: Image.asset(
+                          'assets/images/logo.jpg',
+                          width: 40,
+                          height: 40,
+                          fit: BoxFit.cover,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -162,20 +158,15 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                   ),
                 ),
 
-              // Collapsed: Show logo centered below menu button
               if (!showExpanded)
                 Center(
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppStyles.mPrimary,
-                      borderRadius: AppStyles.bRadiusSmall,
-                    ),
-                    child: const Icon(
-                      LucideIcons.zap,
-                      size: 20,
-                      color: Colors.white,
+                  child: ClipRRect(
+                    borderRadius: AppStyles.bRadiusSmall,
+                    child: Image.asset(
+                      'assets/images/logo.jpg',
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
@@ -560,28 +551,18 @@ class _ProjectItemState extends State<_ProjectItem> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            // Use project color as subtle background tint
+            // Use transparent/light background
             color: widget.isActive
-                ? (widget.markColor ?? AppStyles.mPrimary).withValues(
-                    alpha: 0.35,
-                  )
+                ? Colors.white.withValues(alpha: 0.1)
                 : (_isHovered
-                      ? (widget.markColor ?? Colors.white).withValues(
-                          alpha: 0.15,
-                        )
-                      : (widget.markColor ?? Colors.transparent).withValues(
-                          alpha: 0.08,
-                        )),
+                      ? Colors.white.withValues(alpha: 0.05)
+                      : Colors.transparent),
             borderRadius: AppStyles.bRadiusMedium,
-            // Add subtle border with project color
-            border: widget.isActive
-                ? Border.all(
-                    color: (widget.markColor ?? AppStyles.mPrimary).withValues(
-                      alpha: 0.5,
-                    ),
-                    width: 1,
-                  )
-                : null,
+            // Full border with project color
+            border: Border.all(
+              color: widget.markColor ?? AppStyles.mPrimary,
+              width: widget.isActive ? 2 : 1.5,
+            ),
           ),
           child: Row(
             children: [

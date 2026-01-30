@@ -7,12 +7,14 @@ class LoginScreen extends StatefulWidget {
   final VoidCallback onSwitchToRegister;
   final VoidCallback? onForgotPassword;
   final Future<bool> Function(String email, String password) onLogin;
+  final Future<List<Map<String, String>>> Function()? onGetAccounts;
 
   const LoginScreen({
     super.key,
     required this.onSwitchToRegister,
     this.onForgotPassword,
     required this.onLogin,
+    this.onGetAccounts,
   });
 
   @override
@@ -27,6 +29,47 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  List<Map<String, String>> _registeredAccounts = [];
+  String? _selectedAccountEmail;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRegisteredAccounts();
+  }
+
+  Future<void> _loadRegisteredAccounts() async {
+    if (widget.onGetAccounts != null) {
+      final accounts = await widget.onGetAccounts!();
+      if (mounted) {
+        setState(() {
+          _registeredAccounts = accounts;
+        });
+      }
+    }
+  }
+
+  void _selectAccount(Map<String, String> account) {
+    setState(() {
+      _selectedAccountEmail = account['email'];
+      _emailController.text = account['email'] ?? '';
+      _passwordController.clear();
+      _errorMessage = null;
+    });
+    // Focus on password field after selecting account
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _passwordFocusNode.requestFocus();
+    });
+  }
+
+  void _clearSelectedAccount() {
+    setState(() {
+      _selectedAccountEmail = null;
+      _emailController.clear();
+      _passwordController.clear();
+      _errorMessage = null;
+    });
+  }
 
   @override
   void dispose() {
@@ -57,6 +100,202 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  String _getInitials(String name, String email) {
+    if (name.isNotEmpty) {
+      final parts = name.trim().split(' ');
+      if (parts.length >= 2) {
+        return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      }
+      return name[0].toUpperCase();
+    }
+    return email.isNotEmpty ? email[0].toUpperCase() : '?';
+  }
+
+  Widget _buildAccountSelector() {
+    if (_registeredAccounts.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Choose an account',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppStyles.mTextSecondary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 100,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _registeredAccounts.length + 1,
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              // Last item is "Use another account" button
+              if (index == _registeredAccounts.length) {
+                return _buildAddAccountCard();
+              }
+
+              final account = _registeredAccounts[index];
+              final isSelected = _selectedAccountEmail == account['email'];
+              return _buildAccountCard(account, isSelected);
+            },
+          ),
+        ),
+        const SizedBox(height: 24),
+        if (_selectedAccountEmail != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppStyles.mPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.user, size: 16, color: AppStyles.mPrimary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Signing in as $_selectedAccountEmail',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppStyles.mPrimary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _clearSelectedAccount,
+                  child: Icon(
+                    LucideIcons.x,
+                    size: 16,
+                    color: AppStyles.mPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (_selectedAccountEmail != null) const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildAccountCard(Map<String, String> account, bool isSelected) {
+    final name = account['name'] ?? '';
+    final email = account['email'] ?? '';
+    final initials = _getInitials(name, email);
+
+    return GestureDetector(
+      onTap: () => _selectAccount(account),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 140,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppStyles.mPrimary.withValues(alpha: 0.1)
+              : AppStyles.mBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? AppStyles.mPrimary
+                : AppStyles.mTextSecondary.withValues(alpha: 0.3),
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppStyles.mPrimary
+                    : AppStyles.mPrimary.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : AppStyles.mPrimary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              name.isNotEmpty ? name : email.split('@')[0],
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppStyles.mTextPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              email,
+              style: TextStyle(fontSize: 10, color: AppStyles.mTextSecondary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddAccountCard() {
+    return GestureDetector(
+      onTap: _clearSelectedAccount,
+      child: Container(
+        width: 90,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppStyles.mBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppStyles.mTextSecondary.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppStyles.mTextSecondary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                LucideIcons.plus,
+                size: 18,
+                color: AppStyles.mTextSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Other',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: AppStyles.mTextSecondary,
+              ),
+              maxLines: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -84,17 +323,13 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Logo
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: AppStyles.mPrimary,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(
-                      LucideIcons.zap,
-                      size: 32,
-                      color: Colors.white,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.asset(
+                      'assets/images/logo.jpg',
+                      width: 80,
+                      height: 80,
+                      fit: BoxFit.cover,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -115,6 +350,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
+
+                  // Account selector
+                  _buildAccountSelector(),
 
                   // Error message
                   if (_errorMessage != null) ...[
@@ -150,31 +388,34 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                   ],
 
-                  // Email field
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    onFieldSubmitted: (_) => _passwordFocusNode.requestFocus(),
-                    decoration: InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(
-                        LucideIcons.mail,
-                        color: AppStyles.mPrimary,
-                        size: 18,
+                  // Email field (hidden when account is selected)
+                  if (_selectedAccountEmail == null) ...[
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) =>
+                          _passwordFocusNode.requestFocus(),
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(
+                          LucideIcons.mail,
+                          color: AppStyles.mPrimary,
+                          size: 18,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Password field
                   TextFormField(

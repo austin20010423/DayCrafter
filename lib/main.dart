@@ -115,17 +115,13 @@ class _MainNavigatorState extends State<MainNavigator> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppStyles.mPrimary,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Icon(
-                  Icons.flash_on,
-                  size: 32,
-                  color: Colors.white,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/images/logo.jpg',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
                 ),
               ),
               const SizedBox(height: 24),
@@ -176,6 +172,7 @@ class _MainNavigatorState extends State<MainNavigator> {
         onLogin: (email, password) async {
           return await provider.login(email: email, password: password);
         },
+        onGetAccounts: () => provider.getRegisteredAccounts(),
       );
     }
 
