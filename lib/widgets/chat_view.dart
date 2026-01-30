@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models.dart';
 import '../provider.dart';
 import '../styles.dart';
@@ -93,7 +95,7 @@ class _ChatViewState extends State<ChatView> {
           'name': _attachedFile ?? 'attachment',
           'type': _attachedFileType ?? 'text',
           if (_attachedFilePath != null) 'path': _attachedFilePath!,
-        }
+        },
       ];
     }
 
@@ -103,7 +105,11 @@ class _ChatViewState extends State<ChatView> {
       displayText = '$displayText\n\n[Attached: $_attachedFile]';
     }
 
-    provider.sendMessage(displayText, MessageRole.user, attachments: attachments);
+    provider.sendMessage(
+      displayText,
+      MessageRole.user,
+      attachments: attachments,
+    );
     _inputController.clear();
     setState(() {
       _attachedFile = null;
@@ -322,7 +328,9 @@ class _ChatViewState extends State<ChatView> {
             _attachedFileType = 'voice';
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${file.name} attached. Waiting for your message.')),
+            SnackBar(
+              content: Text('${file.name} attached. Waiting for your message.'),
+            ),
           );
         }
       }
@@ -349,7 +357,9 @@ class _ChatViewState extends State<ChatView> {
             _attachedFileType = 'text';
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${file.name} attached. Waiting for your message.')),
+            SnackBar(
+              content: Text('${file.name} attached. Waiting for your message.'),
+            ),
           );
         }
       }
@@ -697,7 +707,7 @@ class _ChatViewState extends State<ChatView> {
   Widget _buildTaskCards(List<Map<String, dynamic>> tasks, String messageId) {
     final provider = context.read<DayCrafterProvider>();
     final isLatest = provider.isLatestTaskMessage(messageId);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -928,118 +938,120 @@ class _ChatViewState extends State<ChatView> {
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppStyles.mPrimary),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.listTodo, color: Colors.white, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Task Details',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+        child: SelectionArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: AppStyles.mPrimary),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.listTodo, color: Colors.white, size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Task Details',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                  // Done button in header
-                  GestureDetector(
-                    onTap: () {
+                    // Done button in header
+                    GestureDetector(
+                      onTap: () {
+                        if (_sidebarMessageId != null) {
+                          _submitTasksToCalendar(tasks, _sidebarMessageId!);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: AppStyles.bRadiusSmall,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              LucideIcons.checkCircle,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Done',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => setState(() => _isSidebarOpen = false),
+                      icon: Icon(LucideIcons.x, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+              // Task list
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: sortedTasks.length,
+                  itemBuilder: (context, index) {
+                    final task = sortedTasks[index];
+                    return _buildDetailedTaskCard(task);
+                  },
+                ),
+              ),
+              // Bottom Done button
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppStyles.mSurface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
                       if (_sidebarMessageId != null) {
                         _submitTasksToCalendar(tasks, _sidebarMessageId!);
                       }
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                    icon: Icon(LucideIcons.checkCircle, size: 18),
+                    label: Text('Done - Add to Calendar'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppStyles.mAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppStyles.bRadiusMedium,
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: AppStyles.bRadiusSmall,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            LucideIcons.checkCircle,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Done',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () => setState(() => _isSidebarOpen = false),
-                    icon: Icon(LucideIcons.x, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            // Task list
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: sortedTasks.length,
-                itemBuilder: (context, index) {
-                  final task = sortedTasks[index];
-                  return _buildDetailedTaskCard(task);
-                },
-              ),
-            ),
-            // Bottom Done button
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppStyles.mSurface,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (_sidebarMessageId != null) {
-                      _submitTasksToCalendar(tasks, _sidebarMessageId!);
-                    }
-                  },
-                  icon: Icon(LucideIcons.checkCircle, size: 18),
-                  label: Text('Done - Add to Calendar'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppStyles.mAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppStyles.bRadiusMedium,
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1193,25 +1205,31 @@ class _ChatViewState extends State<ChatView> {
                     size: 44,
                   ),
                   const SizedBox(width: 12),
-                  Builder(builder: (context) {
-                    final provider = context.watch<DayCrafterProvider>();
-                    if (provider.isLoading) {
+                  Builder(
+                    builder: (context) {
+                      final provider = context.watch<DayCrafterProvider>();
+                      if (provider.isLoading) {
+                        return _IconButton(
+                          icon: LucideIcons.x,
+                          onTap: () => context
+                              .read<DayCrafterProvider>()
+                              .cancelCurrentRequest(),
+                          isDanger: true,
+                          size: 44,
+                          enabled: true,
+                        );
+                      }
                       return _IconButton(
-                        icon: LucideIcons.x,
-                        onTap: () => context.read<DayCrafterProvider>().cancelCurrentRequest(),
-                        isDanger: true,
+                        icon: LucideIcons.send,
+                        onTap: _handleSubmit,
+                        isPrimary: true,
                         size: 44,
-                        enabled: true,
+                        enabled:
+                            _inputController.text.isNotEmpty ||
+                            _attachedFile != null,
                       );
-                    }
-                    return _IconButton(
-                      icon: LucideIcons.send,
-                      onTap: _handleSubmit,
-                      isPrimary: true,
-                      size: 44,
-                      enabled: _inputController.text.isNotEmpty || _attachedFile != null,
-                    );
-                  }),
+                    },
+                  ),
                 ],
               ),
             ],
@@ -1365,13 +1383,13 @@ class _IconButton extends StatelessWidget {
     final bgColor = isDanger
         ? Colors.red
         : (isPrimary
-            ? (enabled ? AppStyles.mPrimary : AppStyles.mBackground)
-            : AppStyles.mBackground.withValues(alpha: 0.4));
+              ? (enabled ? AppStyles.mPrimary : AppStyles.mBackground)
+              : AppStyles.mBackground.withValues(alpha: 0.4));
     final iconColor = isDanger
         ? Colors.white
         : (isPrimary
-            ? (enabled ? Colors.white : AppStyles.mTextSecondary)
-            : AppStyles.mTextPrimary);
+              ? (enabled ? Colors.white : AppStyles.mTextSecondary)
+              : AppStyles.mTextPrimary);
 
     return InkWell(
       onTap: enabled ? onTap : null,
@@ -1644,7 +1662,7 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
   Widget _buildDetailItem(
     IconData icon,
     String label,
-    String value, {
+    Widget value, {
     VoidCallback? onTap,
   }) {
     final content = Row(
@@ -1656,21 +1674,7 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
           '$label: ',
           style: TextStyle(fontSize: 12, color: AppStyles.mTextSecondary),
         ),
-        Flexible(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: onTap != null
-                  ? AppStyles.mPrimary
-                  : AppStyles.mTextPrimary,
-              decoration: onTap != null ? TextDecoration.underline : null,
-              decorationColor: AppStyles.mPrimary,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        Flexible(child: value),
         if (onTap != null) ...[
           const SizedBox(width: 4),
           Icon(LucideIcons.edit2, size: 12, color: AppStyles.mPrimary),
@@ -1775,7 +1779,14 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
               _buildDetailItem(
                 LucideIcons.play,
                 'Start',
-                _taskData['dateOnCalendar'] ?? '-',
+                Text(
+                  _taskData['dateOnCalendar'] ?? '-',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppStyles.mTextPrimary,
+                  ),
+                ),
                 onTap: () => _showDatePicker(
                   'dateOnCalendar',
                   _taskData['dateOnCalendar'] ?? '',
@@ -1785,7 +1796,14 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
               _buildDetailItem(
                 LucideIcons.calendar,
                 'Due',
-                _taskData['DueDate'] ?? '-',
+                Text(
+                  _taskData['DueDate'] ?? '-',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppStyles.mTextPrimary,
+                  ),
+                ),
                 onTap: () =>
                     _showDatePicker('DueDate', _taskData['DueDate'] ?? ''),
               ),
@@ -1796,7 +1814,14 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
           _buildDetailItem(
             LucideIcons.clock,
             'Time',
-            '${_taskData['TimeToComplete'] ?? '-'} Days',
+            Text(
+              '${_taskData['TimeToComplete'] ?? '-'} Days',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppStyles.mTextPrimary,
+              ),
+            ),
           ),
           const SizedBox(height: 4),
           // Start time and end time row
@@ -1805,7 +1830,16 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
               _buildDetailItem(
                 LucideIcons.clock3,
                 'Start Time',
-                _taskData['start_time'] ?? '--:--',
+                Text(
+                  _taskData['start_time'] ?? '--:--',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppStyles.mPrimary,
+                    decoration: TextDecoration.underline,
+                    decorationColor: AppStyles.mPrimary,
+                  ),
+                ),
                 onTap: () =>
                     _showTimePicker('start_time', _taskData['start_time']),
               ),
@@ -1813,7 +1847,16 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
               _buildDetailItem(
                 LucideIcons.clock9,
                 'End Time',
-                _taskData['end_time'] ?? '--:--',
+                Text(
+                  _taskData['end_time'] ?? '--:--',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: AppStyles.mPrimary,
+                    decoration: TextDecoration.underline,
+                    decorationColor: AppStyles.mPrimary,
+                  ),
+                ),
                 onTap: () => _showTimePicker('end_time', _taskData['end_time']),
               ),
             ],
@@ -1833,13 +1876,18 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                widget.task['Description'] ?? '',
+              SelectableLinkify(
+                text: widget.task['Description'] ?? '',
                 style: TextStyle(
                   fontSize: 13,
                   color: AppStyles.mTextPrimary,
                   height: 1.5,
                 ),
+                onOpen: (link) async {
+                  if (!await launchUrl(Uri.parse(link.url))) {
+                    debugPrint('Could not launch ${link.url}');
+                  }
+                },
               ),
             ],
             // Links
@@ -1851,9 +1899,14 @@ class _ExpandableTaskCardState extends State<_ExpandableTaskCard> {
                   Icon(LucideIcons.link, size: 14, color: AppStyles.mPrimary),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(
-                      widget.task['links'].toString(),
+                    child: SelectableLinkify(
+                      text: widget.task['links'].toString(),
                       style: TextStyle(fontSize: 12, color: AppStyles.mPrimary),
+                      onOpen: (link) async {
+                        if (!await launchUrl(Uri.parse(link.url))) {
+                          debugPrint('Could not launch ${link.url}');
+                        }
+                      },
                     ),
                   ),
                 ],

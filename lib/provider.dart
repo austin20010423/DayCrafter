@@ -13,6 +13,7 @@ import 'database/objectbox_entities.dart';
 import 'services/embedding_service.dart';
 import 'services/task_scheduler.dart';
 import 'services/local_auth_service.dart';
+import 'services/short_term_memory.dart';
 
 // ============================================================================
 // MCP Helper Functions
@@ -151,6 +152,9 @@ class DayCrafterProvider with ChangeNotifier {
   // Format: { projectId: [ { 'id': '<mcp-id>', 'result': <raw-result> }, ... ] }
   Map<String, List<Map<String, dynamic>>> _mcpResponses = {};
 
+  // LangChain short-term memory for token-efficient conversation context
+  late ShortTermMemory _shortTermMemory;
+
   // A small palette of colors (hex strings) for projects
   final List<String> _palette = [
     '#FF6B6B', // Red
@@ -247,7 +251,13 @@ class DayCrafterProvider with ChangeNotifier {
     );
   }
 
+  // Memory getters
+  ShortTermMemory get shortTermMemory => _shortTermMemory;
+  String get memoryContext => _shortTermMemory.getLastNMessagesContext(5);
+  int get estimatedMemoryTokens => _shortTermMemory.getEstimatedTokens();
+
   DayCrafterProvider() {
+    _shortTermMemory = ShortTermMemory(maxMessages: 10, maxTokens: 4000);
     _loadInitialData();
   }
 
@@ -352,6 +362,7 @@ class DayCrafterProvider with ChangeNotifier {
     _projects = [];
     _activeProjectId = null;
     _taskChangelogs = {};
+    _shortTermMemory.clear(); // Clear memory on logout
     notifyListeners();
   }
 
@@ -433,10 +444,59 @@ class DayCrafterProvider with ChangeNotifier {
   }
 
   void setActiveProject(String? id) {
+    // Save current memory before switching
+    if (_activeProjectId != null) {
+      _saveMemoryForProject(_activeProjectId!);
+    }
+
     _activeProjectId = id;
     _activeNavItem =
         NavItem.agent; // Switch to agent view when selecting project
+
+    // Load memory for new project
+    if (id != null) {
+      _loadMemoryForProject(id);
+    } else {
+      _shortTermMemory.clear();
+    }
+
     notifyListeners();
+  }
+
+  /// Save short-term memory for a project
+  void _saveMemoryForProject(String projectId) {
+    try {
+      final prefs = SharedPreferences.getInstance();
+      prefs.then((p) {
+        final memoryJson = _shortTermMemory.exportToJson();
+        final userPrefix = _currentUserEmail != null
+            ? '${_currentUserEmail}_memory'
+            : 'daycrafter_memory';
+        p.setString('${userPrefix}_$projectId', memoryJson);
+      });
+    } catch (e) {
+      debugPrint('Error saving memory for project: $e');
+    }
+  }
+
+  /// Load short-term memory for a project
+  void _loadMemoryForProject(String projectId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userPrefix = _currentUserEmail != null
+          ? '${_currentUserEmail}_memory'
+          : 'daycrafter_memory';
+      final memoryJson = prefs.getString('${userPrefix}_$projectId');
+
+      _shortTermMemory.clear();
+      if (memoryJson != null) {
+        _shortTermMemory.importFromJson(memoryJson);
+        debugPrint('✅ Loaded memory for project: $projectId');
+      }
+    } catch (e) {
+      debugPrint('Error loading memory for project: $e');
+      _shortTermMemory.clear();
+    }
   }
 
   // Calendar methods
@@ -714,6 +774,13 @@ class DayCrafterProvider with ChangeNotifier {
     _projects[projectIndex] = updatedProject;
     await _saveProjects();
 
+    // Add to LangChain short-term memory (token-efficient)
+    _shortTermMemory.addMessageWithId(
+      newMessage.id,
+      text,
+      role == MessageRole.user ? 'user' : 'assistant',
+    );
+
     // Save to ObjectBox for semantic search (in background)
     _saveMessageToObjectBox(newMessage, _activeProjectId!);
 
@@ -808,45 +875,17 @@ class DayCrafterProvider with ChangeNotifier {
         }
       }
 
-      // Get token-efficient changelog and previous MCP responses
+      // Get token-efficient changelog
       final projectId = _activeProjectId ?? '';
       final changelog = _taskChangelogs[projectId] ?? '';
-      final previousMcpResponses = _mcpResponses[projectId] ?? [];
 
-      // Build comprehensive agent context with full history
-      String agentContextSection = '';
-      if (previousMcpResponses.isNotEmpty) {
-        agentContextSection += '\n📊 PREVIOUS API RESPONSES (from this session):\n';
-        for (int i = 0; i < previousMcpResponses.length && i < 5; i++) {
-          final response = previousMcpResponses[i];
-          final timestamp = response['timestamp'] as String?;
-          agentContextSection += '  Response ${i + 1} (${timestamp ?? "timestamp"}):';
-          
-          // Include summarized result for context
-          try {
-            final result = response['result'];
-            if (result is List && result.isNotEmpty) {
-              final taskCount = result.length;
-              agentContextSection += ' $taskCount tasks created\n';
-            } else if (result is String) {
-              agentContextSection += ' ${result.length > 100 ? result.substring(0, 100) + "..." : result}\n';
-            } else {
-              agentContextSection += ' API response received\n';
-            }
-          } catch (_) {
-            agentContextSection += ' API response received\n';
-          }
-        }
-      }
-
-      // Build system prompt with MANDATORY MCP tool usage and agent context
-      String systemPrompt = '''You are a Project Manager assistant with FULL ACCESS to the entire project history.
-
-PROJECT MEMORY - YOU HAVE COMPLETE CONTEXT:
-✓ All previous messages in this thread
-✓ All previous API responses and generated tasks
-✓ Complete chat history for this project
-✓ Full task changelog and planning history$agentContextSection
+      // Build system prompt using LangChain short-term memory (token-efficient)
+      String systemPrompt = _shortTermMemory.getSystemPrompt(
+        projectName: activeProject?.name,
+      );
+      
+      // Add MCP tool requirements
+      systemPrompt += '''
 
 ⚠️  CRITICAL INSTRUCTION - READ CAREFULLY:
 You MUST use the MCP tool "task_and_schedule_planer" for ALL of these requests:
@@ -876,7 +915,7 @@ Project: "${activeProject?.name}"''';
       systemPrompt += '''
 
 IMPORTANT BEHAVIORS:
-1. Reference previous API responses and tasks when relevant
+1. Reference previous messages and tasks when relevant
 2. Remember all previous user requests in this thread
 3. Build upon previous plans rather than starting from scratch
 4. Use the MCP tool EVERY TIME for planning/scheduling/task requests!
@@ -891,34 +930,8 @@ IMPORTANT BEHAVIORS:
       final messages = <Map<String, dynamic>>[];
       messages.add({"role": "system", "content": systemPrompt});
 
-      // Add previous messages from thread history for full context
-      if (_activeProjectId != null) {
-        final project = activeProject;
-        if (project != null && project.messages.isNotEmpty) {
-          // Include recent messages (token-efficient)
-          final recentMessages = project.messages.length > 10
-              ? project.messages.sublist(project.messages.length - 10)
-              : project.messages;
-          
-          for (final msg in recentMessages) {
-            final role = msg.role == MessageRole.user ? 'user' : 'assistant';
-            
-            // If message has tasks, include a summary
-            if (msg.tasks != null && msg.tasks!.isNotEmpty) {
-              final taskNames = msg.tasks!
-                  .map((t) => t['TaskName'] ?? 'Task')
-                  .take(5)
-                  .join(', ');
-              messages.add({
-                'role': role,
-                'content': '${msg.text}\n[Tasks created: $taskNames]'
-              });
-            } else if (msg.text.isNotEmpty) {
-              messages.add({'role': role, 'content': msg.text});
-            }
-          }
-        }
-      }
+      // Use LangChain short-term memory for token-efficient message history
+      messages.addAll(_shortTermMemory.getMessages());
 
       // Add current user message
       messages.add({"role": "user", "content": userMessage});
@@ -937,6 +950,7 @@ IMPORTANT BEHAVIORS:
       debugPrint('─' * 60);
       debugPrint('📊 INTENT DETECTION & MCP TRIGGER CHECK');
       debugPrint('─' * 60);
+      debugPrint('📊 Memory tokens: ${_shortTermMemory.getEstimatedTokens()}, Messages: ${_shortTermMemory.getMessageCount()}');
       final truncatedQuery = userText.length > 100 ? '${userText.substring(0, 100)}...' : userText;
       debugPrint('User query: "$truncatedQuery"');
       debugPrint('GPT response length: ${aiText.length} chars');
@@ -1133,6 +1147,18 @@ IMPORTANT BEHAVIORS:
           await _saveMcpResponses();
         } catch (e) {
           debugPrint('Failed to persist MCP raw response: $e');
+        }
+
+        // Add MCP task response to short-term memory so agent remembers planned tasks
+        try {
+          final taskSummary = _buildTaskSummaryForMemory(tasks);
+          _shortTermMemory.addMessage(
+            'MCP Task Planning Result:\n$taskSummary',
+            'assistant',
+          );
+          debugPrint('✅ Added ${tasks.length} planned tasks to short-term memory');
+        } catch (e) {
+          debugPrint('Failed to add MCP response to memory: $e');
         }
 
         // Update token-efficient changelog
@@ -1476,6 +1502,24 @@ Respond naturally as if discussing the plan update with the project team.''';
         debugPrint('⚠️ Failed to sync projects to ObjectBox: $e');
       }
     }
+  }
+
+  /// Build a concise task summary for short-term memory
+  String _buildTaskSummaryForMemory(List<Map<String, dynamic>> tasks) {
+    if (tasks.isEmpty) return '(no tasks)';
+    
+    final taskList = tasks
+        .take(5) // Limit to first 5 tasks for token efficiency
+        .map((t) {
+          final name = t['TaskName']?.toString() ?? 'Task';
+          final priority = t['priority'] ?? 3;
+          final priorityLabel = priority == 1 ? '🔴' : priority == 2 ? '🟡' : '🟢';
+          return '• $priorityLabel $name';
+        })
+        .join('\n');
+    
+    final moreCount = tasks.length > 5 ? '\n... and ${tasks.length - 5} more tasks' : '';
+    return '$taskList$moreCount';
   }
 
   /// Updates the token-efficient changelog with a compact summary of new tasks

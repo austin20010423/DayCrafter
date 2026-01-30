@@ -59,6 +59,8 @@ dependencies:
   emoji_picker_flutter: ^2.2.0
   # Crypto for password hashing
   crypto: ^3.0.3
+  url_launcher: ^6.3.2
+  flutter_linkify: ^6.0.0
 
 dev_dependencies:
   flutter_test:

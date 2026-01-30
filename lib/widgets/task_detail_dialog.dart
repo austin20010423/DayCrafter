@@ -3,7 +3,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../provider.dart';
 import '../styles.dart';
+
 import 'add_task_dialog.dart';
+import 'package:flutter_linkify/flutter_linkify.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// A beautiful modal dialog that shows full task details
 class TaskDetailDialog extends StatelessWidget {
@@ -82,99 +85,120 @@ class TaskDetailDialog extends StatelessWidget {
                 Flexible(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Time info
-                        if (startTime != null && startTime.isNotEmpty)
-                          _buildInfoRow(
-                            LucideIcons.clock,
-                            'Time',
-                            endTime != null && endTime.isNotEmpty
-                                ? '$startTime - $endTime'
-                                : startTime,
-                            AppStyles.mAccent,
-                          ),
-
-                        // Date info
-                        if (dateOnCalendar != null && dateOnCalendar.isNotEmpty)
-                          _buildInfoRow(
-                            LucideIcons.calendar,
-                            'Date',
-                            dateOnCalendar,
-                            AppStyles.mPrimary,
-                          ),
-
-                        // Due date
-                        if (dueDate != null &&
-                            dueDate.isNotEmpty &&
-                            dueDate != dateOnCalendar)
-                          _buildInfoRow(
-                            LucideIcons.calendarCheck,
-                            'Due Date',
-                            dueDate,
-                            Colors.orange,
-                          ),
-
-                        // Time to complete
-                        if (timeToComplete != null)
-                          _buildInfoRow(
-                            LucideIcons.timer,
-                            'Estimated Time',
-                            '$timeToComplete minutes',
-                            AppStyles.mSecondary,
-                          ),
-
-                        // Priority
-                        _buildInfoRow(
-                          LucideIcons.flag,
-                          'Priority',
-                          _getPriorityLabel(priority),
-                          priorityColor,
-                        ),
-
-                        // Description
-                        if (description != null && description.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            'Description',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppStyles.mTextSecondary,
+                    child: SelectionArea(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Time info
+                          if (startTime != null && startTime.isNotEmpty)
+                            _buildInfoRow(
+                              LucideIcons.clock,
+                              'Time',
+                              endTime != null && endTime.isNotEmpty
+                                  ? '$startTime - $endTime'
+                                  : startTime,
+                              AppStyles.mAccent,
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppStyles.mBackground.withValues(
-                                alpha: 0.5,
-                              ),
-                              borderRadius: AppStyles.bRadiusSmall,
+
+                          // Date info
+                          if (dateOnCalendar != null &&
+                              dateOnCalendar.isNotEmpty)
+                            _buildInfoRow(
+                              LucideIcons.calendar,
+                              'Date',
+                              dateOnCalendar,
+                              AppStyles.mPrimary,
                             ),
-                            child: Text(
-                              description,
+
+                          // Due date
+                          if (dueDate != null &&
+                              dueDate.isNotEmpty &&
+                              dueDate != dateOnCalendar)
+                            _buildInfoRow(
+                              LucideIcons.calendarCheck,
+                              'Due Date',
+                              dueDate,
+                              Colors.orange,
+                            ),
+
+                          // Time to complete
+                          if (timeToComplete != null)
+                            _buildInfoRow(
+                              LucideIcons.timer,
+                              'Estimated Time',
+                              '$timeToComplete minutes',
+                              AppStyles.mSecondary,
+                            ),
+
+                          // Priority
+                          _buildInfoRow(
+                            LucideIcons.flag,
+                            'Priority',
+                            _getPriorityLabel(priority),
+                            priorityColor,
+                          ),
+
+                          // Description
+                          if (description != null &&
+                              description.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              'Description',
                               style: TextStyle(
-                                fontSize: 14,
-                                color: AppStyles.mTextPrimary,
-                                height: 1.5,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppStyles.mTextSecondary,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppStyles.mBackground.withValues(
+                                  alpha: 0.5,
+                                ),
+                                borderRadius: AppStyles.bRadiusSmall,
+                              ),
+                              child: SelectableLinkify(
+                                text: description,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: AppStyles.mTextPrimary,
+                                  height: 1.5,
+                                ),
+                                onOpen: (link) async {
+                                  if (!await launchUrl(Uri.parse(link.url))) {
+                                    debugPrint('Could not launch ${link.url}');
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
 
-                        // Links
-                        if (links != null && links.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          _buildInfoRow(
-                            LucideIcons.link,
-                            'Links',
-                            links,
-                            AppStyles.mPrimary,
-                          ),
+                          // Links
+                          if (links != null && links.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _buildInfoRowWidget(
+                              LucideIcons.link,
+                              'Links',
+                              SelectableLinkify(
+                                text: links,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppStyles.mPrimary,
+                                ),
+                                onOpen: (link) async {
+                                  if (!await launchUrl(Uri.parse(link.url))) {
+                                    debugPrint('Could not launch ${link.url}');
+                                  }
+                                },
+                              ),
+                              AppStyles.mPrimary,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -257,6 +281,27 @@ class TaskDetailDialog extends StatelessWidget {
   }
 
   Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
+    return _buildInfoRowWidget(
+      icon,
+      label,
+      Text(
+        value,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppStyles.mTextPrimary,
+        ),
+      ),
+      color,
+    );
+  }
+
+  Widget _buildInfoRowWidget(
+    IconData icon,
+    String label,
+    Widget valueWidget,
+    Color color,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -282,14 +327,7 @@ class TaskDetailDialog extends StatelessWidget {
                   color: AppStyles.mTextSecondary,
                 ),
               ),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppStyles.mTextPrimary,
-                ),
-              ),
+              valueWidget,
             ],
           ),
         ],
