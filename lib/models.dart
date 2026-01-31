@@ -7,6 +7,8 @@ class Message {
   final DateTime timestamp;
   final List<Map<String, dynamic>>? tasks;
   final List<Map<String, String>>? attachments;
+  final String? mcpInputPending; // Stores the proposed MCP input
+  final bool isMcpConsent; // Flag if this is a consent request message
 
   Message({
     required this.id,
@@ -15,6 +17,8 @@ class Message {
     required this.timestamp,
     this.tasks,
     this.attachments,
+    this.mcpInputPending,
+    this.isMcpConsent = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -25,6 +29,8 @@ class Message {
       'timestamp': timestamp.toIso8601String(),
       'tasks': tasks,
       'attachments': attachments,
+      'mcpInputPending': mcpInputPending,
+      'isMcpConsent': isMcpConsent,
     };
   }
 
@@ -40,6 +46,8 @@ class Message {
       attachments: json['attachments'] != null
           ? List<Map<String, String>>.from(json['attachments'])
           : null,
+      mcpInputPending: json['mcpInputPending'],
+      isMcpConsent: json['isMcpConsent'] ?? false,
     );
   }
 }

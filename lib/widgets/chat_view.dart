@@ -691,6 +691,42 @@ class _ChatViewState extends State<ChatView> {
                         listBullet: TextStyle(color: AppStyles.mTextPrimary),
                       ),
                     ),
+                  if (msg.isMcpConsent && msg.mcpInputPending != null) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppStyles.mPrimary,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            if (context.read<DayCrafterProvider>().isLoading)
+                              return;
+                            context
+                                .read<DayCrafterProvider>()
+                                .approvePendingMcp(msg);
+                          },
+                          icon: const Icon(LucideIcons.check, size: 16),
+                          label: const Text('Yes'),
+                        ),
+                        const SizedBox(width: 12),
+                        OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppStyles.mTextSecondary,
+                          ),
+                          onPressed: () {
+                            if (context.read<DayCrafterProvider>().isLoading)
+                              return;
+                            context.read<DayCrafterProvider>().denyPendingMcp(
+                              msg,
+                            );
+                          },
+                          child: const Text('No'),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (msg.tasks != null && msg.tasks!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     _buildTaskCards(msg.tasks!, msg.id),

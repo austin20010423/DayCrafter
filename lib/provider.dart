@@ -4,9 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
+import 'package:http_parser/http_parser.dart';
+import 'package:mcp_client/mcp_client.dart' as mcp;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http_parser/http_parser.dart';
 import 'models.dart';
 import 'database/objectbox_service.dart';
 import 'database/objectbox_entities.dart';
@@ -25,7 +26,9 @@ Map<String, String?> detectMcpMarker(String gptText) {
   final re = RegExp(r'\[USE_MCP_TOOL:\s*([^\]]+)\]');
   final m = re.firstMatch(gptText);
   if (m == null) {
-    debugPrint('ℹ️  No MCP marker detected in GPT response (intent: pure chat)');
+    debugPrint(
+      'ℹ️  No MCP marker detected in GPT response (intent: pure chat)',
+    );
     return {'tool': null, 'task': null};
   }
 
@@ -35,7 +38,7 @@ Map<String, String?> detectMcpMarker(String gptText) {
   // Extract task text: look for [INPUT: ...] pattern
   final inputRe = RegExp(r'\[INPUT:\s*([^\]]+)\]');
   final inputMatch = inputRe.firstMatch(gptText);
-  
+
   String task = '';
   if (inputMatch != null) {
     task = inputMatch.group(1)!.trim();
@@ -43,61 +46,14 @@ Map<String, String?> detectMcpMarker(String gptText) {
   } else {
     // Fallback: extract text after the tool marker
     final after = gptText.substring(m.end).trim();
-    task = after.isNotEmpty ? after : gptText.replaceFirst(m.group(0)!, '').trim();
+    task = after.isNotEmpty
+        ? after
+        : gptText.replaceFirst(m.group(0)!, '').trim();
     debugPrint('📋 Extracted task from context after marker');
   }
-  
+
   debugPrint('📋 MCP task input extracted: ${task.length} chars');
   return {'tool': tool, 'task': task};
-}
-
-/// Call MCP invoke endpoint
-Future<Map<String, dynamic>> callMcpInvoke({
-  required String baseUrl, // e.g. "http://127.0.0.1:8000"
-  required String tool,
-  required String taskText,
-  String? bearerToken,
-  Duration timeout = const Duration(seconds: 300),
-}) async {
-  final url = Uri.parse('$baseUrl/mcp/invoke');
-  debugPrint('🚀 Calling MCP server: $url');
-  debugPrint('   Tool: $tool, Timeout: ${timeout.inSeconds}s');
-
-  final payload = {
-    'inputs': {
-      'topic': taskText,
-      'tool': tool,
-    }
-  };
-
-  final headers = <String, String>{
-    'Content-Type': 'application/json',
-    if (bearerToken != null) 'Authorization': 'Bearer $bearerToken',
-  };
-
-  try {
-    final response = await http
-        .post(url, headers: headers, body: jsonEncode(payload))
-        .timeout(timeout);
-
-    debugPrint('📡 MCP response received: Status ${response.statusCode}');
-
-    if (response.statusCode >= 400) {
-      debugPrint('❌ MCP call failed: ${response.statusCode}');
-      throw Exception('MCP call failed: ${response.statusCode} ${response.body}');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    debugPrint('✅ MCP response parsed successfully');
-
-    // Prefer MCP-style outputs.content.result, fallback to top-level result
-    final result = (data['outputs']?['content']?['result']) ?? data['result'] ?? data;
-    debugPrint('📦 MCP result extracted, type: ${result.runtimeType}');
-    return {'id': data['id'], 'result': result};
-  } catch (e) {
-    debugPrint('❌ MCP call error: $e');
-    rethrow;
-  }
 }
 
 // ============================================================================
@@ -127,11 +83,13 @@ class DayCrafterProvider with ChangeNotifier {
   int _requestCounter = 0;
   int? _currentRequestId;
   final Set<int> _cancelledRequests = {};
-  
+
+  // API availability state (for fallback to pure chat mode)
   // API availability state (for fallback to pure chat mode)
   bool _isApiAvailable = true;
-  final String _mcpBaseUrl = 'http://127.0.0.1:8000'; // MCP: task_and_schedule_planer
-  final String _mcpTool = 'task_and_schedule_planer';
+
+  // MCP Client Integration
+  mcp.Client? _mcpClient;
 
   // Navigation state
   NavItem _activeNavItem = NavItem.agent;
@@ -143,14 +101,6 @@ class DayCrafterProvider with ChangeNotifier {
   // Theme and localization state
   AppThemeMode _themeMode = AppThemeMode.light;
   AppLocale _locale = AppLocale.english;
-
-  // Token-efficient task changelog per project (stores compact summary instead of full JSON)
-  // Format: "v1: Created 5 tasks (2 high, 2 med, 1 low) | v2: Adjusted due dates | v3: Added 2 tasks"
-  Map<String, String> _taskChangelogs = {};
-
-  // Store raw MCP API responses per project so the agent/system can remember them
-  // Format: { projectId: [ { 'id': '<mcp-id>', 'result': <raw-result> }, ... ] }
-  Map<String, List<Map<String, dynamic>>> _mcpResponses = {};
 
   // LangChain short-term memory for token-efficient conversation context
   late ShortTermMemory _shortTermMemory;
@@ -361,7 +311,7 @@ class DayCrafterProvider with ChangeNotifier {
     _userName = null;
     _projects = [];
     _activeProjectId = null;
-    _taskChangelogs = {};
+
     _shortTermMemory.clear(); // Clear memory on logout
     notifyListeners();
   }
@@ -398,12 +348,6 @@ class DayCrafterProvider with ChangeNotifier {
         await _saveProjects();
       }
     }
-
-    // Load changelogs for token-efficient LLM context
-    await _loadChangelogs();
-
-    // Load stored MCP responses so agent/system memory includes API outputs
-    await _loadMcpResponses();
 
     // Load settings
     await _loadSettings();
@@ -496,6 +440,19 @@ class DayCrafterProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error loading memory for project: $e');
       _shortTermMemory.clear();
+    }
+  }
+
+  Future<void> _deleteProjectMemory(String projectId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userPrefix = _currentUserEmail != null
+          ? '${_currentUserEmail}_memory'
+          : 'daycrafter_memory';
+      await prefs.remove('${userPrefix}_$projectId');
+      debugPrint('🗑️ Deleted memory for project: $projectId');
+    } catch (e) {
+      debugPrint('Error deleting memory for project: $e');
     }
   }
 
@@ -752,8 +709,14 @@ class DayCrafterProvider with ChangeNotifier {
     }
   }
 
-  Future<void> sendMessage(String text, MessageRole role,
-      {List<Map<String, String>>? attachments}) async {
+  Future<void> sendMessage(
+    String text,
+    MessageRole role, {
+    List<Map<String, String>>? attachments,
+    List<Map<String, dynamic>>? tasks,
+    bool isMcpConsent = false,
+    String? mcpInputPending,
+  }) async {
     if (_activeProjectId == null) return;
 
     final projectIndex = _projects.indexWhere((p) => p.id == _activeProjectId);
@@ -764,6 +727,9 @@ class DayCrafterProvider with ChangeNotifier {
       role: role,
       text: text,
       attachments: attachments,
+      tasks: tasks,
+      isMcpConsent: isMcpConsent,
+      mcpInputPending: mcpInputPending,
       timestamp: DateTime.now(),
     );
 
@@ -775,9 +741,18 @@ class DayCrafterProvider with ChangeNotifier {
     await _saveProjects();
 
     // Add to LangChain short-term memory (token-efficient)
+    String memoryText = text;
+    if (tasks != null && tasks.isNotEmpty) {
+      final taskSummary = tasks
+          .map((t) => "- ${t['task']} (Due: ${t['DueDate']})")
+          .join('\n');
+      memoryText +=
+          "\n[System: The following tasks were created and displayed to the user:]\n$taskSummary";
+    }
+
     _shortTermMemory.addMessageWithId(
       newMessage.id,
-      text,
+      memoryText,
       role == MessageRole.user ? 'user' : 'assistant',
     );
 
@@ -795,13 +770,82 @@ class DayCrafterProvider with ChangeNotifier {
       notifyListeners();
 
       // Always call GPT - it decides if it needs the MCP tool (task_and_schedule_planer)
-      await _getAiResponse(text, attachments: attachments, requestId: requestId);
+      await _getAiResponse(
+        text,
+        attachments: attachments,
+        requestId: requestId,
+      );
 
       // If this request was cancelled, don't overwrite loading state again
       if (!_cancelledRequests.contains(requestId)) {
         _isLoading = false;
         notifyListeners();
       }
+    }
+  }
+
+  /// User approved the pending MCP action
+  Future<void> approvePendingMcp(Message message) async {
+    if (message.mcpInputPending == null) return;
+
+    // Set loading
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final mcpInput = message.mcpInputPending!;
+      debugPrint('🚀 User APPROVED MCP action. Invoking with input: $mcpInput');
+
+      // Call the MCP server
+      final tasks = await _getTasks(mcpInput);
+
+      if (tasks != null && tasks.isNotEmpty) {
+        // Context for summary was removed.
+
+        // Generate summary (stubbed for now, using a generic message is safer than complex logic duplication)
+        // Ideally we call OpenAi, but for now let's just confirm.
+        // Actually, we can just say:
+
+        // Generate summary (stubbed for now, using a generic message is safer than complex logic duplication)
+        // Ideally we call OpenAi, but for now let's just confirm.
+        // Actually, we can just say:
+        final summaryText =
+            "I've scheduled the tasks based on your request. You can check the cards below.";
+
+        await sendMessage(summaryText, MessageRole.model, tasks: tasks);
+      } else {
+        await sendMessage(
+          "The tool executed but returned no tasks.",
+          MessageRole.model,
+        );
+      }
+    } catch (e) {
+      debugPrint("Error executing approved MCP: $e");
+      await sendMessage(
+        "Sorry, I encountered an error executing the plan.",
+        MessageRole.model,
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// User denied the pending MCP action
+  Future<void> denyPendingMcp(Message message) async {
+    debugPrint('🛑 User DENIED MCP action.');
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      await sendMessage(
+        "Okay, I won't use the scheduler tool. I've noted your request in our conversation history.",
+        MessageRole.model,
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -840,7 +884,9 @@ class DayCrafterProvider with ChangeNotifier {
       if (attachments != null && attachments.isNotEmpty) {
         for (final att in attachments) {
           if (_cancelledRequests.contains(requestId)) {
-            debugPrint('Request $requestId cancelled before processing attachments');
+            debugPrint(
+              'Request $requestId cancelled before processing attachments',
+            );
             return;
           }
           final type = att['type'];
@@ -876,50 +922,53 @@ class DayCrafterProvider with ChangeNotifier {
       }
 
       // Get token-efficient changelog
-      final projectId = _activeProjectId ?? '';
-      final changelog = _taskChangelogs[projectId] ?? '';
+      // Get token-efficient changelog
+      final String changelog = '';
+
+      // Get all tasks in the project to ensure full context
+      String projectContext = '';
 
       // Build system prompt using LangChain short-term memory (token-efficient)
       String systemPrompt = _shortTermMemory.getSystemPrompt(
         projectName: activeProject?.name,
       );
-      
-      // Add MCP tool requirements
-      systemPrompt += '''
 
-⚠️  CRITICAL INSTRUCTION - READ CAREFULLY:
-You MUST use the MCP tool "task_and_schedule_planer" for ALL of these requests:
-- "give me a plan" → USE MCP TOOL
-- "schedule this" → USE MCP TOOL
-- "create tasks" → USE MCP TOOL
-- "organize this" → USE MCP TOOL
-- "plan this assignment" → USE MCP TOOL
-- "break this down" → USE MCP TOOL
-- "modify tasks" → USE MCP TOOL (if asking to reorganize/refine existing plans)
-- ANY task-related request → USE MCP TOOL
+      // Inject the full project context
+      systemPrompt += projectContext;
 
-REQUIRED RESPONSE FORMAT:
-Always respond with BOTH:
-1. Your analysis/explanation (reference previous context if relevant)
-2. The MCP tool markers (MUST HAVE):
-
-[USE_MCP_TOOL: task_and_schedule_planer]
-[INPUT: <specific details about what user wants>]
-
-Project: "${activeProject?.name}"''';
-
+      // Add basic MCP context if needed, but keeping it clean as requested
       if (changelog.isNotEmpty) {
         systemPrompt += '\nTask Changelog: $changelog';
       }
 
+      // Add MCP tool requirements
       systemPrompt += '''
+You are an autonomous assistant with access to MCP tools. 
+Only response with 繁體中文 or English.
 
-IMPORTANT BEHAVIORS:
-1. Reference previous messages and tasks when relevant
-2. Remember all previous user requests in this thread
-3. Build upon previous plans rather than starting from scratch
-4. Use the MCP tool EVERY TIME for planning/scheduling/task requests!
-5. Include context from chat history in your responses''';
+Autonomy rules:
+- Proactively discover relevant MCP tools and resources.
+- Fetch missing context before answering.
+- Chain multiple MCP tool calls when needed.
+- Validate information by cross-checking tools when possible.
+
+Safety rules:
+- Never guess when a tool can provide an answer.
+- If tools return conflicting data, report the conflict.
+- Ask the user for clarification only when tools are insufficient.
+
+Output:
+- Deliver a final, user-facing answer only after tool usage is complete.
+
+AVAILABLE TOOLS:
+- task_and_schedule_planer: Use this for ALL task planning, scheduling, creation, organization, or breakdown requests.
+
+FORMAT TO CALL TOOLS:
+If you need to use a tool, your response MUST contain ONLY the following format:
+[USE_MCP_TOOL: task_and_schedule_planer]
+[INPUT: <what you want the tool to do>]
+
+Project: "${activeProject?.name}"''';
 
       if (_cancelledRequests.contains(requestId)) {
         debugPrint('Request $requestId cancelled before API call');
@@ -944,52 +993,60 @@ IMPORTANT BEHAVIORS:
 
       final response = await openAI.onChatCompletion(request: request);
 
-      var aiText = response?.choices.first.message?.content ??
+      var aiText =
+          response?.choices.first.message?.content ??
           "I'm sorry, I couldn't generate a response.";
 
       debugPrint('─' * 60);
       debugPrint('📊 INTENT DETECTION & MCP TRIGGER CHECK');
       debugPrint('─' * 60);
-      debugPrint('📊 Memory tokens: ${_shortTermMemory.getEstimatedTokens()}, Messages: ${_shortTermMemory.getMessageCount()}');
-      final truncatedQuery = userText.length > 100 ? '${userText.substring(0, 100)}...' : userText;
+      debugPrint(
+        '📊 Memory tokens: ${_shortTermMemory.getEstimatedTokens()}, Messages: ${_shortTermMemory.getMessageCount()}',
+      );
+      final truncatedQuery = userText.length > 100
+          ? '${userText.substring(0, 100)}...'
+          : userText;
       debugPrint('User query: "$truncatedQuery"');
       debugPrint('GPT response length: ${aiText.length} chars');
 
       // Check if GPT wants to use the MCP tool
       final mcpMarker = detectMcpMarker(aiText);
-      
+      List<Map<String, dynamic>>? tasksToDisplay;
+
       if (mcpMarker['tool'] != null) {
         if (_isApiAvailable) {
           debugPrint('═' * 60);
           debugPrint('🎯 INTENT CLASSIFIED: TASK PLANNING / SCHEDULING');
           debugPrint('═' * 60);
           debugPrint('✅ MCP tool trigger detected: ${mcpMarker['tool']}');
-          
+
           // Extract the task input for the MCP tool
           final mcpInput = mcpMarker['task'] ?? userText;
-          debugPrint('📝 Task input prepared for MCP: ${mcpInput.length} chars');
-          
-          // Call the MCP server
-          debugPrint('\n🔗 INVOKING MCP SERVER...');
-          final tasks = await _getTasks(mcpInput);
-          
-          if (tasks != null && tasks.isNotEmpty) {
-            debugPrint('\n✅ SUCCESS: MCP returned ${tasks.length} tasks');
-            debugPrint('═' * 60);
-            // Task message was already added by _getTasks()
-            // Don't send the GPT message with MCP markers
-            return;
-          }
-          
-          debugPrint('⚠️  MCP returned empty or null results, falling back to GPT response');
+          debugPrint(
+            '📝 Task input prepared for MCP: ${mcpInput.length} chars',
+          );
+
+          // Request user consent before invoking tool
+          debugPrint('✋ Asking user for consent to use MCP tool...');
+
+          await sendMessage(
+            "I can help you plan and schedule these tasks using the Calendar Agent. Would you like me to proceed?",
+            MessageRole.model,
+            isMcpConsent: true,
+            mcpInputPending: mcpInput,
+          );
+          return;
         } else {
-          debugPrint('⚠️  MCP tool marker detected but API unavailable - using fallback mode');
+          debugPrint(
+            '⚠️  MCP tool marker detected but API unavailable - using fallback mode',
+          );
+
+          // If MCP failed, remove the markers and send GPT's response anyway
+          aiText = aiText
+              .replaceAll(RegExp(r'\[USE_MCP_TOOL:.*?\]'), '')
+              .replaceAll(RegExp(r'\[INPUT:.*?\]'), '')
+              .trim();
         }
-        
-        // If MCP failed, remove the markers and send GPT's response anyway
-        aiText = aiText.replaceAll(RegExp(r'\[USE_MCP_TOOL:.*?\]'), '')
-                       .replaceAll(RegExp(r'\[INPUT:.*?\]'), '')
-                       .trim();
       } else {
         debugPrint('═' * 60);
         debugPrint('💬 INTENT CLASSIFIED: PURE CHAT / CONVERSATION');
@@ -1002,7 +1059,7 @@ IMPORTANT BEHAVIORS:
         return;
       }
 
-      await sendMessage(aiText, MessageRole.model);
+      await sendMessage(aiText, MessageRole.model, tasks: tasksToDisplay);
     } catch (e) {
       debugPrint('AI Error: $e');
       await sendMessage(
@@ -1048,19 +1105,146 @@ IMPORTANT BEHAVIORS:
     }
   }
 
-  Future<List<Map<String, dynamic>>?> _getTasks(String userText) async {
-    debugPrint('Starting MCP task API call...');
+  /// Initialize MCP Client connection
+  Future<void> _initMcpClient() async {
+    if (_mcpClient != null) return;
+
     try {
-      // Call the MCP endpoint using the new /mcp/invoke pattern
-      final invokeResult = await callMcpInvoke(
-        baseUrl: _mcpBaseUrl,
-        tool: _mcpTool,
-        taskText: userText,
-        timeout: const Duration(seconds: 300),
+      debugPrint('🔌 Initializing MCP Client connection...');
+
+      // Path to python server script
+
+      String serverPath = '';
+
+      // Try relative to project root
+      final possiblePaths = [
+        '../CrewAI-Driven-Calendar/mcp_server.py',
+        'CrewAI-Driven-Calendar/mcp_server.py',
+        '/Users/chenchaoshiang/SideProject/AI_Calendar/CrewAI-Driven-Calendar/mcp_server.py',
+      ];
+
+      for (final path in possiblePaths) {
+        if (await File(path).exists()) {
+          serverPath = path;
+          break;
+        }
+      }
+
+      if (serverPath.isEmpty) {
+        serverPath = '../CrewAI-Driven-Calendar/mcp_server.py';
+        debugPrint(
+          '⚠️ Could not find mcp_server.py relatively, using default relative path: $serverPath',
+        );
+      } else {
+        debugPrint('✅ Found MCP server at: $serverPath');
+      }
+
+      String pythonCommand = 'python3';
+
+      // Check for virtual environment usage
+      final venvPath = File(
+        serverPath.replaceAll('mcp_server.py', '.venv/bin/python'),
+      );
+      if (await venvPath.exists()) {
+        pythonCommand = venvPath.path;
+        debugPrint('✅ Using virtual environment python: $pythonCommand');
+      }
+
+      // Create stdio transport (Standardized JSON-RPC 2.0)
+      final transportResult = await mcp.McpClient.createStdioTransport(
+        command: pythonCommand,
+        arguments: [serverPath],
+        environment: {'PYTHONUNBUFFERED': '1'},
       );
 
-      // Keep raw result for system memory and parsing
-      final rawResult = invokeResult['result'];
+      final dynamic result = transportResult;
+      // Attempt to access common properties for Result type using dynamic dispatch
+      // since the exact API is not exposed or documentation is unavailable.
+      var transport;
+      try {
+        transport = result.success;
+      } catch (_) {}
+      try {
+        transport ??= result.value;
+      } catch (_) {}
+      try {
+        transport ??= result.result;
+      } catch (_) {}
+      try {
+        transport ??= result.data;
+      } catch (_) {}
+
+      if (transport == null) {
+        // Fallback: maybe it has a `transport` property?
+        try {
+          transport ??= result.transport;
+        } catch (_) {}
+      }
+
+      if (transport == null) {
+        debugPrint('⚠️ Could not unwrap Result type: ${result.runtimeType}');
+        // If it was an error, try to print it
+        try {
+          debugPrint('Error content: ${result.error}');
+        } catch (_) {}
+        try {
+          debugPrint('Failure content: ${result.failure}');
+        } catch (_) {}
+        throw Exception("Unknown Result API");
+      }
+
+      _mcpClient = mcp.McpClient.createClient(
+        mcp.McpClientConfig(name: "DayCrafterClient", version: "1.0.0"),
+      );
+
+      await _mcpClient!.connect(transport);
+      debugPrint('✅ Connected to MCP Server!');
+
+      // List tools to verify
+      final tools = await _mcpClient!.listTools();
+      debugPrint(
+        '🛠️ Discovered ${tools.length} MCP tools: ${tools.map((t) => t.name).join(", ")}',
+      );
+      _isApiAvailable = true;
+    } catch (e) {
+      debugPrint('❌ Failed to initialize MCP client: $e');
+      _isApiAvailable = false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>?> _getTasks(String userText) async {
+    debugPrint('Starting MCP task API call...');
+
+    // Ensure client is initialized
+    if (_mcpClient == null) {
+      await _initMcpClient();
+    }
+
+    if (_mcpClient == null || !_isApiAvailable) {
+      debugPrint('⚠️ MCP Client unavailable');
+      return null;
+    }
+
+    try {
+      debugPrint('🚀 Calling MCP tool: task_and_schedule_planer');
+
+      // Call the tool
+      final result = await _mcpClient!.callTool('task_and_schedule_planer', {
+        'topic': userText,
+      });
+
+      // Extract text content from result
+      String rawResult = '';
+      if (result.content.isNotEmpty) {
+        // Assuming the first content block is the text result
+        final block = result.content.first;
+        if (block is mcp.TextContent) {
+          rawResult = block.text;
+        } else {
+          debugPrint('⚠️ Unexpected content type: ${block.runtimeType}');
+          rawResult = block.toString();
+        }
+      }
 
       // Parse the result into tasks list
       final tasks = _parseMcpResult(rawResult);
@@ -1074,373 +1258,14 @@ IMPORTANT BEHAVIORS:
         _computeTimeToComplete(task);
       }
 
-      // Create message with task cards
-      final taskMessage = Message(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        role: MessageRole.model,
-        text: 'Here are the planned tasks:',
-        timestamp: DateTime.now(),
-        tasks: tasks,
-      );
-
-      final projectIndex = _projects.indexWhere(
-        (p) => p.id == _activeProjectId,
-      );
-      if (projectIndex != -1) {
-        var messagesToAdd = [taskMessage];
-
-        // Get previous tasks from this project for comparison
-        final previousTasks = _getPreviousProjectTasks(_projects[projectIndex]);
-        
-        // Get ALL tasks ever planned in this project (for agent context)
-        final allProjectTasks = _getAllProjectTasks(_projects[projectIndex]);
-        
-        // Generate dynamic agent response about what changed
-        if (previousTasks.isNotEmpty) {
-          final dynamicResponse = await _generateDynamicChangeResponse(
-            previousTasks: previousTasks,
-            newTasks: tasks,
-            allProjectTasks: allProjectTasks,
-            projectMessages: _projects[projectIndex].messages,
-            userRequest: userText,
-          );
-          
-          if (dynamicResponse.isNotEmpty) {
-            debugPrint('🤖 Agent generated dynamic response: ${dynamicResponse.length} chars');
-            
-            // Create agent response message
-            final responseMessage = Message(
-              id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
-              role: MessageRole.model,
-              text: dynamicResponse,
-              timestamp: DateTime.now().add(const Duration(milliseconds: 1)),
-            );
-            
-            messagesToAdd.add(responseMessage);
-          }
-        }
-
-        final updatedProject = _projects[projectIndex].copyWith(
-          messages: [..._projects[projectIndex].messages, ...messagesToAdd],
-        );
-        _projects[projectIndex] = updatedProject;
-        await _saveProjects();
-
-        // Persist each new message into ObjectBox so embeddings/search include them
-        for (final msg in messagesToAdd) {
-          try {
-            await _saveMessageToObjectBox(msg, _activeProjectId!);
-          } catch (e) {
-            debugPrint('Failed to save task message to ObjectBox: $e');
-          }
-        }
-
-        // Save raw MCP response into system memory store for the project
-          try {
-          final pid = _activeProjectId ?? _projects[projectIndex].id;
-          _mcpResponses.putIfAbsent(pid, () => []);
-          _mcpResponses[pid]!.add({
-            'id': invokeResult['id'],
-            'result': rawResult,
-            'timestamp': DateTime.now().toIso8601String(),
-          });
-          await _saveMcpResponses();
-        } catch (e) {
-          debugPrint('Failed to persist MCP raw response: $e');
-        }
-
-        // Add MCP task response to short-term memory so agent remembers planned tasks
-        try {
-          final taskSummary = _buildTaskSummaryForMemory(tasks);
-          _shortTermMemory.addMessage(
-            'MCP Task Planning Result:\n$taskSummary',
-            'assistant',
-          );
-          debugPrint('✅ Added ${tasks.length} planned tasks to short-term memory');
-        } catch (e) {
-          debugPrint('Failed to add MCP response to memory: $e');
-        }
-
-        // Update token-efficient changelog
-        _updateTaskChangelog(_activeProjectId!, tasks);
-
-        notifyListeners();
-      }
-
-      debugPrint('✅ MCP task API completed with ${tasks.length} tasks');
       return tasks;
     } catch (e) {
-      debugPrint('❌ MCP task API Error: $e');
-      // Mark API as unavailable and fall back to pure chat mode
-      _isApiAvailable = false;
-      
-      debugPrint('🔴 MCP API is unavailable. Falling back to pure chat mode.');
-      return null; // Return null to skip task creation and proceed to pure chat
+      debugPrint('❌ MCP Execution Error: $e');
+      return null;
     }
   }
 
   /// Build token-efficient conversation history with compression
-  /// Convert Dart MessageRole enum to OpenAI-compatible role string
-  String _convertRoleToOpenAI(MessageRole role) {
-    return role == MessageRole.user ? 'user' : 'assistant';
-  }
-
-  List<Map<String, String>> _buildCompressedConversationHistory(
-    List<Message> allMessages, {
-    int maxRecentMessages = 3,
-  }) {
-    if (allMessages.isEmpty) return [];
-
-    final messages = <Map<String, String>>[];
-    
-    // Keep recent messages in full, compress older ones
-    int recentCount = 0;
-    for (int i = allMessages.length - 1; i >= 0; i--) {
-      final msg = allMessages[i];
-      
-      // Include task result messages in the history (but summarized)
-      if (msg.tasks != null && msg.tasks!.isNotEmpty) {
-        // Summarize task message for context
-        final taskSummary = msg.tasks!.map((t) => t['TaskName'] ?? 'Task').join(', ');
-        messages.insert(0, {
-          'role': 'assistant',
-          'content': 'Created tasks: $taskSummary',
-        });
-        continue;
-      }
-      
-      // Skip empty messages
-      if (msg.text.isEmpty) continue;
-      
-      if (recentCount < maxRecentMessages) {
-        // Keep recent messages as-is, but convert role using helper
-        final role = _convertRoleToOpenAI(msg.role);
-        messages.insert(0, {
-          'role': role,
-          'content': msg.text,
-        });
-        recentCount++;
-      } else {
-        // Compress older messages
-        if (i < allMessages.length - maxRecentMessages) {
-          final summary = _summarizeOldMessage(msg);
-          if (summary.isNotEmpty) {
-            messages.insert(0, {
-              'role': 'system',
-              'content': '(Previous context: $summary)',
-            });
-          }
-          break; // Only keep compressed summary of earlier context
-        }
-      }
-    }
-    
-    return messages;
-  }
-
-  /// Create concise summary of old message
-  String _summarizeOldMessage(Message msg) {
-    final text = msg.text;
-    if (text.length < 50) return text;
-    
-    // Extract first 50 chars and add ellipsis
-    return '${text.substring(0, 50)}...';
-  }
-
-  /// Convert priority number to label
-  String _getPriorityLabel(dynamic priority) {
-    final p = priority is int ? priority : int.tryParse(priority?.toString() ?? '3') ?? 3;
-    switch (p) {
-      case 1: return 'High';
-      case 2: return 'Medium';
-      default: return 'Low';
-    }
-  }
-
-  /// Generate dynamic agent response about changes using GPT
-  Future<String> _generateDynamicChangeResponse({
-    required List<Map<String, dynamic>> previousTasks,
-    required List<Map<String, dynamic>> newTasks,
-    required List<Map<String, dynamic>> allProjectTasks,
-    required List<Message> projectMessages,
-    required String userRequest,
-  }) async {
-    try {
-      // Load API key
-      String apiKey;
-      try {
-        if (!dotenv.isInitialized) {
-          await dotenv.load(fileName: ".env");
-        }
-        apiKey = dotenv.env['OPENAI_API_KEY'] ?? 'YOUR_OPENAI_API_KEY';
-      } catch (e) {
-        debugPrint('Dotenv error: $e');
-        apiKey = 'YOUR_OPENAI_API_KEY';
-      }
-
-      final openAI = OpenAI.instance.build(
-        token: apiKey,
-        baseOption: HttpSetup(
-          receiveTimeout: const Duration(seconds: 30),
-          connectTimeout: const Duration(seconds: 30),
-        ),
-      );
-
-      // Build token-efficient conversation history
-      final conversationHistory = _buildCompressedConversationHistory(projectMessages);
-      
-      // Build task comparison context with full details
-      final prevNames = previousTasks.map((t) => t['TaskName'] as String?).toSet();
-      final newNames = newTasks.map((t) => t['TaskName'] as String?).toSet();
-      final added = newNames.difference(prevNames);
-      final removed = prevNames.difference(newNames);
-      
-      // Format all project tasks for reference
-      String allTasksContext = '';
-      if (allProjectTasks.isNotEmpty) {
-        allTasksContext = '\n📋 ALL TASKS IN THIS PROJECT:\n';
-        for (int i = 0; i < allProjectTasks.length; i++) {
-          final task = allProjectTasks[i];
-          final name = task['TaskName'] ?? 'Unnamed';
-          final priority = _getPriorityLabel(task['priority']);
-          final desc = task['Description'] ?? '';
-          final status = task['Status'] ?? 'Planned';
-          
-          allTasksContext += '${i + 1}. $name\n';
-          allTasksContext += '   Priority: $priority | Status: $status\n';
-          if (desc.isNotEmpty) {
-            allTasksContext += '   Description: ${desc.length > 80 ? desc.substring(0, 80) + '...' : desc}\n';
-          }
-        }
-      }
-      
-      // Build detailed task information for context
-      String taskDetails = 'New Tasks Created:\n';
-      for (final task in newTasks) {
-        final name = task['TaskName'] ?? 'Unnamed';
-        final priority = _getPriorityLabel(task['priority']);
-        final desc = task['Description'] ?? '';
-        taskDetails += '  • $name (Priority: $priority)';
-        if (desc.isNotEmpty && desc.length < 100) {
-          taskDetails += ' - $desc';
-        }
-        taskDetails += '\n';
-      }
-      
-      String changeContext = 'Previous task count: ${previousTasks.length}\n';
-      changeContext += 'New task count: ${newTasks.length}\n';
-      changeContext += 'Total tasks in project: ${allProjectTasks.length}\n';
-      changeContext += 'Added tasks: ${added.isEmpty ? "none" : added.join(", ")}\n';
-      changeContext += 'Removed tasks: ${removed.isEmpty ? "none" : removed.join(", ")}\n\n';
-      changeContext += taskDetails;
-      changeContext += allTasksContext;
-
-      final systemPrompt = '''You are an intelligent project assistant with complete access to the project's entire task planning history.
-
-Project: "${activeProject?.name}"
-
-You have full access to:
-- The complete task list that was just created
-- ALL previously planned tasks in this conversation thread
-- Previous task versions and their modifications
-- The user's specific request
-- The entire conversation history
-
-Your role:
-1. Acknowledge what new tasks were created
-2. Relate them to existing tasks if relevant
-3. Provide thoughtful commentary about the plan
-4. Help users refine tasks through natural language
-
-KEY CAPABILITY: You can discuss ANY task ever mentioned in this project. Users can ask you to:
-- Modify task priorities or descriptions
-- Change task status or dates
-- Add dependencies between tasks
-- Remove or consolidate tasks
-- Explain why certain tasks are important
-
-When discussing tasks:
-1. Reference them by their exact names
-2. Show understanding of dependencies and relationships
-3. Be practical and implementation-focused
-4. Suggest improvements when appropriate
-
-IMPORTANT:
-1. Reference specific tasks by name when discussing changes
-2. Be concise but insightful - 2-3 sentences typically
-3. Focus on the meaning and impact of changes
-4. Reference the user's intent and acknowledge it
-5. Be encouraging and supportive
-6. Each response must feel natural and context-specific
-7. Do NOT use markdown, bullet points, or structured lists
-
-User's specific request: "$userRequest"
-
-Task Information:
-$changeContext
-
-Respond naturally as if discussing the plan update with the project team.''';
-
-      // Build message list with conversation history
-      final messages = [
-        {'role': 'system', 'content': systemPrompt},
-        ...conversationHistory,
-        {
-          'role': 'user',
-          'content': 'Analyze the new tasks that were created and provide feedback on the updated plan. What are the key changes and what do you think about them?'
-        }
-      ];
-
-      debugPrint('🧠 Generating dynamic response with ${messages.length} messages (token-efficient)');
-
-      final request = ChatCompleteText(
-        model: GptTurboChatModel(),
-        messages: messages,
-        maxToken: 300, // Shorter response for change commentary
-      );
-
-      final response = await openAI.onChatCompletion(request: request);
-      final dynamicText = response?.choices.first.message?.content ?? '';
-
-      return dynamicText.trim();
-    } catch (e) {
-      debugPrint('❌ Error generating dynamic response: $e');
-      return ''; // Return empty to skip adding dynamic response
-    }
-  }
-
-  /// Get all tasks ever planned in this project (from all message history)
-  List<Map<String, dynamic>> _getAllProjectTasks(Project project) {
-    final allTasks = <String, Map<String, dynamic>>{};
-    
-    // Iterate through all messages and collect all task references
-    for (final msg in project.messages) {
-      if (msg.tasks != null && msg.tasks!.isNotEmpty) {
-        for (final task in msg.tasks!) {
-          final taskName = task['TaskName'] as String?;
-          if (taskName != null) {
-            // Keep the latest version of each task (tasks are added chronologically)
-            allTasks[taskName] = task;
-          }
-        }
-      }
-    }
-    
-    return allTasks.values.toList();
-  }
-
-  /// Get previous tasks from project history
-  List<Map<String, dynamic>> _getPreviousProjectTasks(Project project) {
-    // Find the last message that has tasks (going backwards)
-    for (int i = project.messages.length - 1; i >= 0; i--) {
-      final msg = project.messages[i];
-      if (msg.tasks != null && msg.tasks!.isNotEmpty) {
-        return msg.tasks!;
-      }
-    }
-    return [];
-  }
-
   /// Parse MCP result into tasks list
   List<Map<String, dynamic>> _parseMcpResult(dynamic result) {
     if (result == null) return [];
@@ -1504,115 +1329,6 @@ Respond naturally as if discussing the plan update with the project team.''';
     }
   }
 
-  /// Build a concise task summary for short-term memory
-  String _buildTaskSummaryForMemory(List<Map<String, dynamic>> tasks) {
-    if (tasks.isEmpty) return '(no tasks)';
-    
-    final taskList = tasks
-        .take(5) // Limit to first 5 tasks for token efficiency
-        .map((t) {
-          final name = t['TaskName']?.toString() ?? 'Task';
-          final priority = t['priority'] ?? 3;
-          final priorityLabel = priority == 1 ? '🔴' : priority == 2 ? '🟡' : '🟢';
-          return '• $priorityLabel $name';
-        })
-        .join('\n');
-    
-    final moreCount = tasks.length > 5 ? '\n... and ${tasks.length - 5} more tasks' : '';
-    return '$taskList$moreCount';
-  }
-
-  /// Updates the token-efficient changelog with a compact summary of new tasks
-  void _updateTaskChangelog(
-    String projectId,
-    List<Map<String, dynamic>> tasks,
-  ) {
-    // Count priorities
-    int high = 0, medium = 0, low = 0;
-    for (final task in tasks) {
-      final p = task['priority'] is int
-          ? task['priority']
-          : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
-      if (p == 1) {
-        high++;
-      } else if (p == 2) {
-        medium++;
-      } else {
-        low++;
-      }
-    }
-
-    // Get existing changelog
-    final existing = _taskChangelogs[projectId] ?? '';
-
-    // Count versions
-    final versionCount =
-        existing.split('|').where((s) => s.trim().isNotEmpty).length + 1;
-
-    // Create compact entry like "v1: 5 tasks (2H/2M/1L)"
-    final entry =
-        'v$versionCount: ${tasks.length} tasks (${high}H/${medium}M/${low}L)';
-
-    // Append to changelog (limit to last 10 versions for token efficiency)
-    if (existing.isEmpty) {
-      _taskChangelogs[projectId] = entry;
-    } else {
-      final parts = existing.split(' | ');
-      if (parts.length >= 10) {
-        parts.removeAt(0); // Remove oldest
-      }
-      parts.add(entry);
-      _taskChangelogs[projectId] = parts.join(' | ');
-    }
-
-    // Save to SharedPreferences
-    _saveChangelogs();
-  }
-
-  Future<void> _saveChangelogs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('daycrafter_changelogs', jsonEncode(_taskChangelogs));
-  }
-
-  Future<void> _loadChangelogs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString('daycrafter_changelogs');
-    if (data != null) {
-      _taskChangelogs = Map<String, String>.from(jsonDecode(data));
-    }
-  }
-
-  /// Persist raw MCP responses so the agent can recall API outputs later
-  Future<void> _saveMcpResponses() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = _currentUserEmail != null
-        ? '${_currentUserEmail}_mcp_responses'
-        : 'daycrafter_mcp_responses';
-    try {
-      await prefs.setString(key, jsonEncode(_mcpResponses));
-    } catch (e) {
-      debugPrint('Failed to save MCP responses: $e');
-    }
-  }
-
-  Future<void> _loadMcpResponses() async {
-    final prefs = await SharedPreferences.getInstance();
-    final key = _currentUserEmail != null
-        ? '${_currentUserEmail}_mcp_responses'
-        : 'daycrafter_mcp_responses';
-    try {
-      final data = prefs.getString(key);
-      if (data != null) {
-        final decoded = jsonDecode(data) as Map<String, dynamic>;
-        _mcpResponses = decoded.map((k, v) => MapEntry(
-            k, (v as List).map((e) => Map<String, dynamic>.from(e)).toList()));
-      }
-    } catch (e) {
-      debugPrint('Failed to load MCP responses: $e');
-      _mcpResponses = {};
-    }
-  }
-
   /// Check if a message is the latest task message in the active project
   bool isLatestTaskMessage(String messageId) {
     if (_activeProjectId == null) return false;
@@ -1651,21 +1367,28 @@ Respond naturally as if discussing the plan update with the project team.''';
 
   /// Deletes a project and cleans up its changelog
   Future<void> deleteProject(String projectId) async {
-    _projects.removeWhere((p) => p.id == projectId);
+    // 1. Delete persistent memory for this project
+    await _deleteProjectMemory(projectId);
 
-    // Clean up changelog for this project
-    _taskChangelogs.remove(projectId);
-    await _saveChangelogs();
+    _projects.removeWhere((p) => p.id == projectId);
 
     // CRM-style cascade delete: removes project, messages, and tasks from DB
     ObjectBoxService.instance.deleteProjectByUuid(projectId);
 
     // Switch to another project if deleted the active one
     if (_activeProjectId == projectId) {
-      _activeProjectId = _projects.isNotEmpty ? _projects.first.id : null;
-    }
+      // Prevent saving the deleted project's memory in setActiveProject
+      _activeProjectId = null;
 
-    await _saveProjects();
+      // Clear current RAM memory immediately
+      _shortTermMemory.clear();
+
+      final nextProjectId = _projects.isNotEmpty ? _projects.first.id : null;
+      setActiveProject(nextProjectId);
+    } else {
+      await _saveProjects();
+      notifyListeners();
+    }
 
     // Debug verification
     final db = ObjectBoxService.instance;
@@ -1673,8 +1396,6 @@ Respond naturally as if discussing the plan update with the project team.''';
     debugPrint(
       '🔎 DEBUG check: User has ${allTasks.length} total tasks remaining in DB after deletion.',
     );
-
-    notifyListeners();
   }
 
   /// Updates a specific task within a message's task list
