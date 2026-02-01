@@ -18,86 +18,48 @@ class DayView extends StatelessWidget {
     final provider = context.watch<DayCrafterProvider>();
     final selectedDate = provider.selectedDate;
 
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            // All Day Tasks Section
-            _buildAllDayTasks(context, provider, selectedDate),
-            const SizedBox(height: 16),
-            // Main content area
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Left side: Date header + Time slots grid
-                  Expanded(
-                    flex: 3,
-                    child: Column(
-                      children: [
-                        _buildDateHeader(context, provider, selectedDate),
-                        const SizedBox(height: 16),
-                        Expanded(child: _buildTimeGrid(context, selectedDate)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  // Right side: Mini calendar + AI Summary + Next Task
-                  SizedBox(
-                    width: 280,
-                    child: ClipRRect(
-                      borderRadius: AppStyles.bRadiusMedium,
-                      child: _buildRightPanel(context, provider, selectedDate),
-                    ),
-                  ),
-                ],
+        // Header with date and navigation (matching week/month view style)
+        _buildHeader(context, provider, selectedDate),
+        const SizedBox(height: 16),
+        // All Day Tasks Section
+        _buildAllDayTasks(context, provider, selectedDate),
+        const SizedBox(height: 16),
+        // Main content area
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left side: Date display + Time slots grid
+              Expanded(
+                flex: 3,
+                child: Column(
+                  children: [
+                    _buildDateDisplay(context, provider, selectedDate),
+                    const SizedBox(height: 16),
+                    Expanded(child: _buildTimeGrid(context, selectedDate)),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-        // Control bar positioned at top-right
-        Positioned(
-          top: 0,
-          right: 0,
-          child: _buildControlBar(context, provider),
+              const SizedBox(width: 16),
+              // Right side: Mini calendar + AI Summary + Next Task
+              SizedBox(
+                width: 280,
+                child: ClipRRect(
+                  borderRadius: AppStyles.bRadiusMedium,
+                  child: _buildRightPanel(context, provider, selectedDate),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildControlBar(BuildContext context, DayCrafterProvider provider) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          // Add task button
-          IconButton(
-            onPressed: () =>
-                AddTaskDialog.show(context, initialDate: provider.selectedDate),
-            icon: const Icon(LucideIcons.plus, size: 20),
-            color: AppStyles.mPrimary,
-            tooltip: AppLocalizations.of(context)!.addTask,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-          const SizedBox(width: 8),
-          // View toggle and close buttons on the right
-          _buildViewToggleCompact(context, provider),
-          const SizedBox(width: 8),
-          IconButton(
-            onPressed: () => provider.setCalendarActive(false),
-            icon: const Icon(LucideIcons.x, size: 20),
-            color: AppStyles.mTextSecondary,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateHeader(
+  /// Header bar matching the week/month view style
+  Widget _buildHeader(
     BuildContext context,
     DayCrafterProvider provider,
     DateTime selectedDate,
@@ -109,84 +71,97 @@ class DayView extends StatelessWidget {
       'MMMM yyyy',
       localeString,
     ).format(selectedDate);
-    final dayNum = selectedDate.day.toString();
 
-    // Align with time grid: 60px for time column matching
-    return Row(
-      children: [
-        // Space to align with time column (60px)
-        const SizedBox(width: 60),
-        // Content area fills the rest, matching the grid content area
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            decoration: BoxDecoration(
-              color: AppStyles.mSurface,
-              borderRadius: AppStyles.bRadiusMedium,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // First row: Navigation arrows + Month/Year
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      onPressed: provider.navigatePrevious,
-                      icon: const Icon(LucideIcons.chevronLeft, size: 24),
-                      color: AppStyles.mTextSecondary,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      monthYear,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: AppStyles.mTextPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      onPressed: provider.navigateNext,
-                      icon: const Icon(LucideIcons.chevronRight, size: 24),
-                      color: AppStyles.mTextSecondary,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                // Second row: Large date number - centered, no background
-                Text(
-                  dayNum,
-                  style: TextStyle(
-                    fontSize: 80,
-                    fontWeight: FontWeight.bold,
-                    color: AppStyles.mPrimary,
-                    height: 1.0,
-                  ),
-                ),
-              ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: AppStyles.mSurface,
+        borderRadius: AppStyles.bRadiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Text(
+            monthYear,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppStyles.mTextPrimary,
             ),
           ),
+          const SizedBox(width: 16),
+          IconButton(
+            onPressed: provider.navigatePrevious,
+            icon: const Icon(LucideIcons.chevronLeft),
+            color: AppStyles.mTextSecondary,
+          ),
+          IconButton(
+            onPressed: provider.navigateNext,
+            icon: const Icon(LucideIcons.chevronRight),
+            color: AppStyles.mTextSecondary,
+          ),
+          const Spacer(),
+          // Add task button
+          IconButton(
+            onPressed: () =>
+                AddTaskDialog.show(context, initialDate: provider.selectedDate),
+            icon: const Icon(LucideIcons.plus),
+            color: AppStyles.mPrimary,
+            tooltip: AppLocalizations.of(context)!.addTask,
+          ),
+          const SizedBox(width: 8),
+          // View toggle buttons
+          _buildViewToggleCompact(context, provider),
+          const SizedBox(width: 16),
+          IconButton(
+            onPressed: () => provider.setCalendarActive(false),
+            icon: const Icon(LucideIcons.x),
+            color: AppStyles.mTextSecondary,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Date display showing the large day number (kept separate from header)
+  Widget _buildDateDisplay(
+    BuildContext context,
+    DayCrafterProvider provider,
+    DateTime selectedDate,
+  ) {
+    final dayNum = selectedDate.day.toString();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      decoration: BoxDecoration(
+        color: AppStyles.mSurface,
+        borderRadius: AppStyles.bRadiusMedium,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        // Large date number - centered
+        child: Text(
+          dayNum,
+          style: TextStyle(
+            fontSize: 80,
+            fontWeight: FontWeight.bold,
+            color: AppStyles.mPrimary,
+            height: 1.0,
+          ),
         ),
-      ],
+      ),
     );
   }
 
@@ -549,8 +524,6 @@ class DayView extends StatelessWidget {
     return SingleChildScrollView(
       child: Column(
         children: [
-          // Spacer for control bar
-          const SizedBox(height: 60),
           // Mini Calendar
           _buildMiniCalendar(context, provider, selectedDate),
           const SizedBox(height: 16),
