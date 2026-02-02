@@ -53,7 +53,6 @@ Map<String, String?> detectMcpMarker(String gptText) {
     debugPrint('📋 Extracted task from context after marker');
   }
 
-  debugPrint('📋 MCP task input extracted: ${task.length} chars');
   return {'tool': tool, 'task': task};
 }
 
@@ -826,7 +825,6 @@ class DayCrafterProvider with ChangeNotifier {
         }
       }
       final mcpInput = message.mcpInputPending!;
-      debugPrint('🚀 User APPROVED MCP action. Invoking with input: $mcpInput');
 
       // Call the MCP server
       final tasks = await _getTasks(mcpInput);

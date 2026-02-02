@@ -719,7 +719,7 @@ class _ChatViewState extends State<ChatView> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        FilledButton.icon(
+                        FilledButton(
                           style: FilledButton.styleFrom(
                             backgroundColor: AppStyles.mPrimary,
                             foregroundColor: Colors.white,
@@ -731,8 +731,7 @@ class _ChatViewState extends State<ChatView> {
                                 .read<DayCrafterProvider>()
                                 .approvePendingMcp(msg);
                           },
-                          icon: const Icon(LucideIcons.check, size: 16),
-                          label: const Text('Yes'),
+                          child: const Text('Yes'),
                         ),
                         const SizedBox(width: 12),
                         OutlinedButton(
@@ -1091,14 +1090,12 @@ class _ChatViewState extends State<ChatView> {
                 ),
                 child: SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () {
                       if (_sidebarMessageId != null) {
                         _submitTasksToCalendar(tasks, _sidebarMessageId!);
                       }
                     },
-                    icon: Icon(LucideIcons.checkCircle, size: 18),
-                    label: Text('Done - Add to Calendar'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppStyles.mAccent,
                       foregroundColor: Colors.white,
@@ -1107,6 +1104,7 @@ class _ChatViewState extends State<ChatView> {
                         borderRadius: AppStyles.bRadiusMedium,
                       ),
                     ),
+                    child: Text('Done - Add to Calendar'),
                   ),
                 ),
               ),

@@ -167,19 +167,9 @@ class _ProjectModalState extends State<ProjectModal> {
                         ),
                         elevation: 0,
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _selectedEmoji,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            AppLocalizations.of(context)!.createProject,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                      child: Text(
+                        AppLocalizations.of(context)!.createProject,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),

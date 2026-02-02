@@ -64,11 +64,9 @@ class SettingsView extends StatelessWidget {
                       // Logout Button at bottom
                       SizedBox(
                         width: double.infinity,
-                        child: OutlinedButton.icon(
+                        child: OutlinedButton(
                           onPressed: () =>
                               _showLogoutConfirmation(context, provider, l10n),
-                          icon: const Icon(LucideIcons.logOut, size: 18),
-                          label: Text(l10n.logout),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.red,
                             side: const BorderSide(color: Colors.red),
@@ -77,6 +75,7 @@ class SettingsView extends StatelessWidget {
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
+                          child: Text(l10n.logout),
                         ),
                       ),
                       const SizedBox(height: 32),
