@@ -8,6 +8,7 @@ class LoginScreen extends StatefulWidget {
   final VoidCallback? onForgotPassword;
   final Future<bool> Function(String email, String password) onLogin;
   final Future<List<Map<String, String>>> Function()? onGetAccounts;
+  final Future<void> Function(String email)? onDeleteAccount;
 
   const LoginScreen({
     super.key,
@@ -15,6 +16,7 @@ class LoginScreen extends StatefulWidget {
     this.onForgotPassword,
     required this.onLogin,
     this.onGetAccounts,
+    this.onDeleteAccount,
   });
 
   @override
@@ -182,72 +184,133 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _handleDeleteAccount(Map<String, String> account) async {
+    final email = account['email'];
+    if (email == null || widget.onDeleteAccount == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Account'),
+        content: Text(
+          'Are you sure you want to remove $email from this device?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await widget.onDeleteAccount!(email);
+      await _loadRegisteredAccounts();
+      if (_selectedAccountEmail == email) {
+        _clearSelectedAccount();
+      }
+    }
+  }
+
   Widget _buildAccountCard(Map<String, String> account, bool isSelected) {
     final name = account['name'] ?? '';
     final email = account['email'] ?? '';
     final initials = _getInitials(name, email);
 
-    return GestureDetector(
-      onTap: () => _selectAccount(account),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 140,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? AppStyles.mPrimary.withValues(alpha: 0.1)
-              : AppStyles.mBackground,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected
-                ? AppStyles.mPrimary
-                : AppStyles.mTextSecondary.withValues(alpha: 0.3),
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: () => _selectAccount(account),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 140,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppStyles.mPrimary.withValues(alpha: 0.1)
+                  : AppStyles.mBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
                 color: isSelected
                     ? AppStyles.mPrimary
-                    : AppStyles.mPrimary.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
+                    : AppStyles.mTextSecondary.withValues(alpha: 0.3),
+                width: isSelected ? 2 : 1,
               ),
-              child: Center(
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : AppStyles.mPrimary,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppStyles.mPrimary
+                        : AppStyles.mPrimary.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
                   ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : AppStyles.mPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  name.isNotEmpty ? name : email.split('@')[0],
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppStyles.mTextPrimary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  email,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppStyles.mTextSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (isSelected)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: () => _handleDeleteAccount(account),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  LucideIcons.trash2,
+                  size: 14,
+                  color: Colors.red,
                 ),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              name.isNotEmpty ? name : email.split('@')[0],
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppStyles.mTextPrimary,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              email,
-              style: TextStyle(fontSize: 10, color: AppStyles.mTextSecondary),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
+          ),
+      ],
     );
   }
 

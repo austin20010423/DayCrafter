@@ -10,12 +10,13 @@ import 'widgets/auth/register_screen.dart';
 import 'widgets/auth/forgot_password_screen.dart';
 import 'widgets/sidebar.dart';
 import 'widgets/header.dart';
-import 'widgets/empty_state.dart';
+
 import 'widgets/chat_view.dart';
 import 'widgets/project_modal.dart';
 import 'widgets/calendar_view.dart';
 import 'widgets/settings_view.dart';
 import 'database/objectbox_service.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'services/embedding_service.dart';
 
 void main() async {
@@ -173,6 +174,7 @@ class _MainNavigatorState extends State<MainNavigator> {
           return await provider.login(email: email, password: password);
         },
         onGetAccounts: () => provider.getRegisteredAccounts(),
+        onDeleteAccount: (email) => provider.deleteAccount(email),
       );
     }
 
@@ -239,11 +241,7 @@ class _MainLayoutState extends State<MainLayout> {
     }
 
     if (provider.activeProjectId == null) {
-      if (provider.projects.isEmpty) {
-        return Center(child: EmptyState(onAdd: _showProjectModal));
-      } else {
-        return _buildWelcomeBack(provider);
-      }
+      return _buildWelcomeBack(provider);
     }
 
     return const ChatView();
@@ -257,50 +255,50 @@ class _MainLayoutState extends State<MainLayout> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
                 color: AppStyles.mPrimary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(24),
               ),
               child: Icon(
-                Icons.dashboard_outlined,
-                size: 32,
+                LucideIcons.layoutGrid,
+                size: 48,
                 color: AppStyles.mPrimary,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             Text(
-              'Welcome back, ${provider.userName}',
+              'Welcome, ${provider.userName}',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 32,
                 fontWeight: FontWeight.bold,
                 color: AppStyles.mTextPrimary,
+                letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Select a project from the sidebar to manage your plans, tasks, and research.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppStyles.mTextSecondary, fontSize: 16),
-            ),
-            const SizedBox(height: 32),
+
+            const SizedBox(height: 40),
             OutlinedButton(
               onPressed: _showProjectModal,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
+                  horizontal: 32,
+                  vertical: 20,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                side: BorderSide(color: AppStyles.mPrimary),
+                side: BorderSide(
+                  color: AppStyles.mPrimary.withValues(alpha: 0.5),
+                ),
+                backgroundColor: Colors.transparent,
               ),
               child: Text(
                 '+ Create New Project',
                 style: TextStyle(
-                  color: AppStyles.mPrimary,
+                  color: AppStyles.mTextPrimary,
+                  fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
               ),

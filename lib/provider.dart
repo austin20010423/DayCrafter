@@ -3,8 +3,9 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:chat_gpt_sdk/chat_gpt_sdk.dart';
+
 import 'package:http_parser/http_parser.dart';
+import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 import 'package:mcp_client/mcp_client.dart' as mcp;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -319,6 +320,12 @@ class DayCrafterProvider with ChangeNotifier {
   /// Get list of registered accounts for account selector
   Future<List<Map<String, String>>> getRegisteredAccounts() async {
     return _authService.getRegisteredAccounts();
+  }
+
+  /// Delete a registered account
+  Future<void> deleteAccount(String email) async {
+    await _authService.deleteAccount(email);
+    notifyListeners();
   }
 
   /// Load user-specific data after login
@@ -793,6 +800,31 @@ class DayCrafterProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Update message in project to remove consent buttons immediately
+      if (_activeProjectId != null) {
+        final projectIndex = _projects.indexWhere(
+          (p) => p.id == _activeProjectId,
+        );
+        if (projectIndex != -1) {
+          final project = _projects[projectIndex];
+          final msgIndex = project.messages.indexWhere(
+            (m) => m.id == message.id,
+          );
+          if (msgIndex != -1) {
+            final updatedMsg = project.messages[msgIndex].copyWith(
+              isMcpConsent: false,
+              setMcpInputPendingToNull: true,
+            );
+            // Create mutable copy of messages list
+            final newMessages = List<Message>.from(project.messages);
+            newMessages[msgIndex] = updatedMsg;
+
+            _projects[projectIndex] = project.copyWith(messages: newMessages);
+            await _saveProjects();
+            notifyListeners(); // Force UI rebuild to hide buttons
+          }
+        }
+      }
       final mcpInput = message.mcpInputPending!;
       debugPrint('🚀 User APPROVED MCP action. Invoking with input: $mcpInput');
 
@@ -839,6 +871,31 @@ class DayCrafterProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Update message in project to remove consent buttons immediately
+      if (_activeProjectId != null) {
+        final projectIndex = _projects.indexWhere(
+          (p) => p.id == _activeProjectId,
+        );
+        if (projectIndex != -1) {
+          final project = _projects[projectIndex];
+          final msgIndex = project.messages.indexWhere(
+            (m) => m.id == message.id,
+          );
+          if (msgIndex != -1) {
+            final updatedMsg = project.messages[msgIndex].copyWith(
+              isMcpConsent: false,
+              setMcpInputPendingToNull: true,
+            );
+            // Create mutable copy of messages list
+            final newMessages = List<Message>.from(project.messages);
+            newMessages[msgIndex] = updatedMsg;
+
+            _projects[projectIndex] = project.copyWith(messages: newMessages);
+            await _saveProjects();
+            notifyListeners(); // Force UI rebuild to hide buttons
+          }
+        }
+      }
       await sendMessage(
         "Okay, I won't use the scheduler tool. I've noted your request in our conversation history.",
         MessageRole.model,
@@ -870,14 +927,6 @@ class DayCrafterProvider with ChangeNotifier {
         );
         apiKey = 'YOUR_OPENAI_API_KEY';
       }
-
-      final openAI = OpenAI.instance.build(
-        token: apiKey,
-        baseOption: HttpSetup(
-          receiveTimeout: const Duration(seconds: 30),
-          connectTimeout: const Duration(seconds: 30),
-        ),
-      );
 
       // Build user message with attachments
       String userMessage = userText;
@@ -922,7 +971,6 @@ class DayCrafterProvider with ChangeNotifier {
       }
 
       // Get token-efficient changelog
-      // Get token-efficient changelog
       final String changelog = '';
 
       // Get all tasks in the project to ensure full context
@@ -942,26 +990,29 @@ class DayCrafterProvider with ChangeNotifier {
       }
 
       // Add MCP tool requirements
-      systemPrompt += '''
-You are an autonomous assistant with access to MCP tools. 
+      systemPrompt +=
+          '''
+You are an autonomous assistant with helping user ${_userName ?? ''} to manage their schedule. 
 Only response with 繁體中文 or English.
 
-Autonomy rules:
-- Proactively discover relevant MCP tools and resources.
-- Fetch missing context before answering.
-- Chain multiple MCP tool calls when needed.
-- Validate information by cross-checking tools when possible.
+CRITICAL - MCP TOOL USAGE RULES:
+Always use the task_and_schedule_planer tool when the user has STRONG and EXPLICIT intent to:
+- Actually CREATE or SCHEDULE tasks on the calendar
+- Request you to PLAN or BREAK DOWN a project into tasks
+- Ask you to ORGANIZE or RESCHEDULE existing tasks
+- Use action words like: "schedule", "plan", "create task", "add to calendar", "break down", "organize my tasks"
 
-Safety rules:
-- Never guess when a tool can provide an answer.
-- If tools return conflicting data, report the conflict.
-- Ask the user for clarification only when tools are insufficient.
+DO NOT use the tool for:
+- Casual conversation about tasks or plans
+- Questions about how to do something
+- General advice or suggestions
+- When user is just mentioning or discussing tasks without asking to create them
+- Hypothetical scenarios ("what if I...", "should I...")
 
-Output:
-- Deliver a final, user-facing answer only after tool usage is complete.
+When in doubt, respond conversationally and ask if the user wants you to actually create/schedule the tasks.
 
 AVAILABLE TOOLS:
-- task_and_schedule_planer: Use this for ALL task planning, scheduling, creation, organization, or breakdown requests.
+- task_and_schedule_planer: Use ONLY when user explicitly wants to create, schedule, or organize tasks.
 
 FORMAT TO CALL TOOLS:
 If you need to use a tool, your response MUST contain ONLY the following format:
@@ -975,26 +1026,49 @@ Project: "${activeProject?.name}"''';
         return;
       }
 
-      // Build full conversation history including chat messages and API responses
-      final messages = <Map<String, dynamic>>[];
-      messages.add({"role": "system", "content": systemPrompt});
+      // Construct a single input string for gpt-5-nano
+      // We format the history as a dialogue transcript
+      final client = OpenAIClient(apiKey: apiKey);
 
-      // Use LangChain short-term memory for token-efficient message history
-      messages.addAll(_shortTermMemory.getMessages());
+      final messages = <ChatCompletionMessage>[
+        ChatCompletionMessage.system(content: systemPrompt),
+      ];
+
+      // Add history
+      final history = _shortTermMemory.getMessages();
+      for (final msg in history) {
+        if (msg['role'] == 'user') {
+          messages.add(
+            ChatCompletionMessage.user(
+              content: ChatCompletionUserMessageContent.string(
+                msg['content'] ?? '',
+              ),
+            ),
+          );
+        } else {
+          messages.add(
+            ChatCompletionMessage.assistant(content: msg['content'] ?? ''),
+          );
+        }
+      }
 
       // Add current user message
-      messages.add({"role": "user", "content": userMessage});
-
-      final request = ChatCompleteText(
-        model: GptTurboChatModel(),
-        messages: messages,
-        maxToken: 1000,
+      messages.add(
+        ChatCompletionMessage.user(
+          content: ChatCompletionUserMessageContent.string(userMessage),
+        ),
       );
 
-      final response = await openAI.onChatCompletion(request: request);
+      final response = await client.createChatCompletion(
+        request: CreateChatCompletionRequest(
+          model: const ChatCompletionModel.modelId('gpt-5-nano'),
+          messages: messages,
+          reasoningEffort: ReasoningEffort.low,
+        ),
+      );
 
       var aiText =
-          response?.choices.first.message?.content ??
+          response.choices.first.message.content ??
           "I'm sorry, I couldn't generate a response.";
 
       debugPrint('─' * 60);

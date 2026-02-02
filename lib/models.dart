@@ -21,6 +21,31 @@ class Message {
     this.isMcpConsent = false,
   });
 
+  Message copyWith({
+    String? id,
+    MessageRole? role,
+    String? text,
+    DateTime? timestamp,
+    List<Map<String, dynamic>>? tasks,
+    List<Map<String, String>>? attachments,
+    String? mcpInputPending,
+    bool setMcpInputPendingToNull = false,
+    bool? isMcpConsent,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      role: role ?? this.role,
+      text: text ?? this.text,
+      timestamp: timestamp ?? this.timestamp,
+      tasks: tasks ?? this.tasks,
+      attachments: attachments ?? this.attachments,
+      mcpInputPending: setMcpInputPendingToNull
+          ? null
+          : (mcpInputPending ?? this.mcpInputPending),
+      isMcpConsent: isMcpConsent ?? this.isMcpConsent,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

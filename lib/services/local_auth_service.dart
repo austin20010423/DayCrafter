@@ -133,6 +133,23 @@ class LocalAuthService {
     await prefs.remove(_currentUserKey);
   }
 
+  /// Delete an account
+  Future<void> deleteAccount(String email) async {
+    final normalizedEmail = email.toLowerCase().trim();
+    final accounts = await _getAccounts();
+
+    // Remove functionality
+    accounts.removeWhere((a) => a['email'] == normalizedEmail);
+    await _saveAccounts(accounts);
+
+    // If deleted account was current user, logout
+    final prefs = await SharedPreferences.getInstance();
+    final currentEmail = prefs.getString(_currentUserKey);
+    if (currentEmail == normalizedEmail) {
+      await logout();
+    }
+  }
+
   /// Check if user is logged in
   Future<bool> isLoggedIn() async {
     final user = await getCurrentUser();
