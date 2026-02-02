@@ -1059,17 +1059,165 @@ Project: "${activeProject?.name}"''';
         ),
       );
 
-      final response = await client.createChatCompletion(
-        request: CreateChatCompletionRequest(
+      // Create a placeholder message for the AI response
+      final assistantMessageId = DateTime.now().millisecondsSinceEpoch
+          .toString();
+      final assistantMessage = Message(
+        id: assistantMessageId,
+        role: MessageRole.model,
+        text: '', // Start empty
+        timestamp: DateTime.now(),
+      );
+
+      // Add placeholder to project immediately
+      if (_activeProjectId != null) {
+        final projectIndex = _projects.indexWhere(
+          (p) => p.id == _activeProjectId,
+        );
+        if (projectIndex != -1) {
+          final updatedProject = _projects[projectIndex].copyWith(
+            messages: [..._projects[projectIndex].messages, assistantMessage],
+          );
+          _projects[projectIndex] = updatedProject;
+          notifyListeners();
+        }
+      }
+
+      var aiText = '';
+      bool fallbackNeeded = false;
+
+      try {
+        final request = CreateChatCompletionRequest(
           model: const ChatCompletionModel.modelId('gpt-5-nano'),
           messages: messages,
           reasoningEffort: ReasoningEffort.low,
-        ),
+        );
+
+        debugPrint('--- Attempting Stream ---');
+        final stream = client.createChatCompletionStream(request: request);
+
+        await for (final chunk in stream) {
+          if (_cancelledRequests.contains(requestId)) {
+            debugPrint('Request $requestId cancelled during stream');
+            return;
+          }
+
+          final content = chunk.choices?.firstOrNull?.delta?.content ?? "";
+          if (content.isNotEmpty) {
+            aiText += content;
+
+            // Update the message in place
+            if (_activeProjectId != null) {
+              final projectIndex = _projects.indexWhere(
+                (p) => p.id == _activeProjectId,
+              );
+              if (projectIndex != -1) {
+                final currentMessages = List<Message>.from(
+                  _projects[projectIndex].messages,
+                );
+                final msgIndex = currentMessages.indexWhere(
+                  (m) => m.id == assistantMessageId,
+                );
+
+                if (msgIndex != -1) {
+                  currentMessages[msgIndex] = currentMessages[msgIndex]
+                      .copyWith(text: aiText);
+
+                  final updatedProject = _projects[projectIndex].copyWith(
+                    messages: currentMessages,
+                  );
+                  _projects[projectIndex] = updatedProject;
+                  notifyListeners();
+                }
+              }
+            }
+          }
+        }
+      } catch (e) {
+        // Check for verification/unsupported value error
+        if (e.toString().contains('unsupported_value') ||
+            e.toString().contains('verify')) {
+          debugPrint(
+            "\n[System] Streaming blocked: Verification required. Falling back...",
+          );
+          fallbackNeeded = true;
+        } else {
+          debugPrint('Stream Error: $e');
+          // For other errors, rethrow to be caught by outer block
+          throw e;
+        }
+      }
+
+      // FALLBACK: Execute a standard request if streaming failed due to verification
+      if (fallbackNeeded) {
+        if (_cancelledRequests.contains(requestId)) return;
+
+        final response = await client.createChatCompletion(
+          request: CreateChatCompletionRequest(
+            model: const ChatCompletionModel.modelId('gpt-5-nano'),
+            messages: messages,
+            reasoningEffort: ReasoningEffort.low,
+          ),
+        );
+
+        aiText =
+            response.choices.first.message.content ??
+            "I'm sorry, I couldn't generate a response.";
+
+        // Update the placeholder with full text
+        if (_activeProjectId != null) {
+          final projectIndex = _projects.indexWhere(
+            (p) => p.id == _activeProjectId,
+          );
+          if (projectIndex != -1) {
+            final currentMessages = List<Message>.from(
+              _projects[projectIndex].messages,
+            );
+            final msgIndex = currentMessages.indexWhere(
+              (m) => m.id == assistantMessageId,
+            );
+
+            if (msgIndex != -1) {
+              currentMessages[msgIndex] = currentMessages[msgIndex].copyWith(
+                text: aiText,
+              );
+              final updatedProject = _projects[projectIndex].copyWith(
+                messages: currentMessages,
+              );
+              _projects[projectIndex] = updatedProject;
+              notifyListeners();
+            }
+          }
+        }
+      }
+
+      // If text is empty after both attempts (and no error thrown), set default
+      if (aiText.isEmpty && !fallbackNeeded) {
+        aiText = "I'm sorry, I couldn't generate a response.";
+        // Final update if needed...
+      }
+
+      // Save complete message to storage
+      await _saveProjects();
+
+      // Add to memory
+      _shortTermMemory.addMessageWithId(
+        assistantMessageId,
+        aiText,
+        'assistant',
       );
 
-      var aiText =
-          response.choices.first.message.content ??
-          "I'm sorry, I couldn't generate a response.";
+      // Save for semantic search
+      final finalMsg = Message(
+        id: assistantMessageId,
+        role: MessageRole.model,
+        text: aiText,
+        timestamp: DateTime.now(),
+      ); // Re-create to ensure clean state
+
+      if (_activeProjectId != null) {
+        _saveMessageToObjectBox(finalMsg, _activeProjectId!);
+      }
 
       debugPrint('─' * 60);
       debugPrint('📊 INTENT DETECTION & MCP TRIGGER CHECK');
@@ -1085,7 +1233,6 @@ Project: "${activeProject?.name}"''';
 
       // Check if GPT wants to use the MCP tool
       final mcpMarker = detectMcpMarker(aiText);
-      List<Map<String, dynamic>>? tasksToDisplay;
 
       if (mcpMarker['tool'] != null) {
         if (_isApiAvailable) {
@@ -1120,6 +1267,31 @@ Project: "${activeProject?.name}"''';
               .replaceAll(RegExp(r'\[USE_MCP_TOOL:.*?\]'), '')
               .replaceAll(RegExp(r'\[INPUT:.*?\]'), '')
               .trim();
+
+          // Update message with cleaned text
+          if (_activeProjectId != null) {
+            final projectIndex = _projects.indexWhere(
+              (p) => p.id == _activeProjectId,
+            );
+            if (projectIndex != -1) {
+              final currentMessages = List<Message>.from(
+                _projects[projectIndex].messages,
+              );
+              final msgIndex = currentMessages.indexWhere(
+                (m) => m.id == assistantMessageId,
+              );
+              if (msgIndex != -1) {
+                currentMessages[msgIndex] = currentMessages[msgIndex].copyWith(
+                  text: aiText,
+                );
+                _projects[projectIndex] = _projects[projectIndex].copyWith(
+                  messages: currentMessages,
+                );
+                notifyListeners();
+                await _saveProjects();
+              }
+            }
+          }
         }
       } else {
         debugPrint('═' * 60);
@@ -1127,13 +1299,6 @@ Project: "${activeProject?.name}"''';
         debugPrint('═' * 60);
       }
       debugPrint('');
-
-      if (_cancelledRequests.contains(requestId)) {
-        debugPrint('Request $requestId cancelled after API call');
-        return;
-      }
-
-      await sendMessage(aiText, MessageRole.model, tasks: tasksToDisplay);
     } catch (e) {
       debugPrint('AI Error: $e');
       await sendMessage(

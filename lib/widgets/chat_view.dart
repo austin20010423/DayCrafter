@@ -566,6 +566,14 @@ class _ChatViewState extends State<ChatView> {
       );
     }
 
+    // Check if there's a streaming AI message (last message is from model and we're loading)
+    // If so, don't show additional loading bubble - the message itself will show the streaming content
+    final isStreamingAiMessage =
+        isLoading &&
+        project.messages.isNotEmpty &&
+        project.messages.last.role == MessageRole.model;
+    final showLoadingBubble = isLoading && !isStreamingAiMessage;
+
     return Column(
       children: [
         Expanded(
@@ -573,13 +581,19 @@ class _ChatViewState extends State<ChatView> {
             child: ListView.builder(
               controller: _scrollController,
               padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-              itemCount: project.messages.length + (isLoading ? 1 : 0),
+              itemCount: project.messages.length + (showLoadingBubble ? 1 : 0),
               itemBuilder: (context, index) {
                 if (index == project.messages.length) {
                   return _buildLoadingBubble();
                 }
                 final msg = project.messages[index];
-                return _buildMessageBubble(msg);
+                return _buildMessageBubble(
+                  msg,
+                  isStreaming:
+                      isLoading &&
+                      index == project.messages.length - 1 &&
+                      msg.role == MessageRole.model,
+                );
               },
             ),
           ),
@@ -592,8 +606,61 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
-  Widget _buildMessageBubble(Message msg) {
+  Widget _buildMessageBubble(Message msg, {bool isStreaming = false}) {
     final isUser = msg.role == MessageRole.user;
+
+    // Determine what content to show for AI messages
+    Widget aiContent;
+    if (!isUser && msg.text.isEmpty && isStreaming) {
+      // Show loading animation when streaming and content is empty
+      aiContent = _buildThinkingAnimationContent();
+    } else {
+      aiContent = MarkdownBody(
+        data: msg.text,
+        selectable: true,
+        styleSheet: MarkdownStyleSheet(
+          p: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 15,
+            height: 1.6,
+          ),
+          h1: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+          h2: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          h3: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          strong: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+          em: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontStyle: FontStyle.italic,
+          ),
+          code: TextStyle(
+            backgroundColor: AppStyles.mBackground,
+            fontFamily: 'monospace',
+            fontSize: 13,
+          ),
+          codeblockDecoration: BoxDecoration(
+            color: AppStyles.mBackground,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          listBullet: TextStyle(color: AppStyles.mTextPrimary),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
@@ -647,50 +714,7 @@ class _ChatViewState extends State<ChatView> {
                       ),
                     )
                   else
-                    MarkdownBody(
-                      data: msg.text,
-                      selectable: true,
-                      styleSheet: MarkdownStyleSheet(
-                        p: TextStyle(
-                          color: AppStyles.mTextPrimary,
-                          fontSize: 15,
-                          height: 1.6,
-                        ),
-                        h1: TextStyle(
-                          color: AppStyles.mTextPrimary,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        h2: TextStyle(
-                          color: AppStyles.mTextPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        h3: TextStyle(
-                          color: AppStyles.mTextPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        strong: TextStyle(
-                          color: AppStyles.mTextPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        em: TextStyle(
-                          color: AppStyles.mTextPrimary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        code: TextStyle(
-                          backgroundColor: AppStyles.mBackground,
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                        ),
-                        codeblockDecoration: BoxDecoration(
-                          color: AppStyles.mBackground,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        listBullet: TextStyle(color: AppStyles.mTextPrimary),
-                      ),
-                    ),
+                    aiContent,
                   if (msg.isMcpConsent && msg.mcpInputPending != null) ...[
                     const SizedBox(height: 16),
                     Row(
