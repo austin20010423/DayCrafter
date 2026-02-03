@@ -277,14 +277,12 @@ class SettingsView extends StatelessWidget {
     return Row(
       children: [
         _LanguageOption(
-          flag: '🇺🇸',
           label: l10n.english,
           isSelected: provider.locale == AppLocale.english,
           onTap: () => provider.setLocale(AppLocale.english),
         ),
         const SizedBox(width: 16),
         _LanguageOption(
-          flag: '🇹🇼',
           label: l10n.chinese,
           isSelected: provider.locale == AppLocale.chinese,
           onTap: () => provider.setLocale(AppLocale.chinese),
@@ -405,13 +403,11 @@ class _ThemeOption extends StatelessWidget {
 }
 
 class _LanguageOption extends StatelessWidget {
-  final String flag;
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _LanguageOption({
-    required this.flag,
     required this.label,
     required this.isSelected,
     required this.onTap,
@@ -438,8 +434,6 @@ class _LanguageOption extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(flag, style: const TextStyle(fontSize: 28)),
-              const SizedBox(width: 12),
               Text(
                 label,
                 style: TextStyle(
