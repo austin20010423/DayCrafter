@@ -1671,8 +1671,24 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       debugPrint('🔌 Initializing MCP Client connection...');
 
       // Path to python server script
-      const serverPath =
+      String serverPath =
           '/Users/chenchaoshiang/SideProject/AI_Calendar/CrewAI-Driven-Calendar/mcp_server.py';
+
+      // If hardcoded path doesn't exist, try to find it dynamically
+      if (!await File(serverPath).exists()) {
+        final siblingPath = '../CrewAI-Driven-Calendar/mcp_server.py';
+        final localPath = 'mcp_server.py';
+
+        if (await File(siblingPath).exists()) {
+          serverPath = File(siblingPath).absolute.path;
+          debugPrint('✅ Found MCP server at sibling path: $serverPath');
+        } else if (await File(localPath).exists()) {
+          serverPath = File(localPath).absolute.path;
+          debugPrint('✅ Found MCP server at local path: $serverPath');
+        } else {
+          debugPrint('⚠️ Could not find mcp_server.py. Keeping default path.');
+        }
+      }
 
       // Check for virtual environment
       String pythonCommand = 'python3';
