@@ -577,25 +577,23 @@ class _ChatViewState extends State<ChatView> {
     return Column(
       children: [
         Expanded(
-          child: SelectionArea(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-              itemCount: project.messages.length + (showLoadingBubble ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == project.messages.length) {
-                  return _buildLoadingBubble();
-                }
-                final msg = project.messages[index];
-                return _buildMessageBubble(
-                  msg,
-                  isStreaming:
-                      isLoading &&
-                      index == project.messages.length - 1 &&
-                      msg.role == MessageRole.model,
-                );
-              },
-            ),
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
+            itemCount: project.messages.length + (showLoadingBubble ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == project.messages.length) {
+                return _buildLoadingBubble();
+              }
+              final msg = project.messages[index];
+              return _buildMessageBubble(
+                msg,
+                isStreaming:
+                    isLoading &&
+                    index == project.messages.length - 1 &&
+                    msg.role == MessageRole.model,
+              );
+            },
           ),
         ),
         Padding(
@@ -615,48 +613,62 @@ class _ChatViewState extends State<ChatView> {
       // Show loading animation when streaming and content is empty
       aiContent = _buildThinkingAnimationContent();
     } else {
-      aiContent = MarkdownBody(
-        data: msg.text,
-        selectable: true,
-        styleSheet: MarkdownStyleSheet(
-          p: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontSize: 15,
-            height: 1.6,
+      aiContent = SelectionArea(
+        child: MarkdownBody(
+          data: msg.text,
+          selectable: false,
+          onTapLink: (text, href, title) async {
+            if (href != null) {
+              final uri = Uri.parse(href);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            }
+          },
+          styleSheet: MarkdownStyleSheet(
+            p: TextStyle(
+              color: AppStyles.mTextPrimary,
+              fontSize: 15,
+              height: 1.6,
+            ),
+            a: TextStyle(
+              color: AppStyles.mPrimary,
+              decoration: TextDecoration.underline,
+            ),
+            h1: TextStyle(
+              color: AppStyles.mTextPrimary,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+            h2: TextStyle(
+              color: AppStyles.mTextPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            h3: TextStyle(
+              color: AppStyles.mTextPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            strong: TextStyle(
+              color: AppStyles.mTextPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+            em: TextStyle(
+              color: AppStyles.mTextPrimary,
+              fontStyle: FontStyle.italic,
+            ),
+            code: TextStyle(
+              backgroundColor: AppStyles.mBackground,
+              fontFamily: 'monospace',
+              fontSize: 13,
+            ),
+            codeblockDecoration: BoxDecoration(
+              color: AppStyles.mBackground,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            listBullet: TextStyle(color: AppStyles.mTextPrimary),
           ),
-          h1: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-          h2: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-          h3: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-          strong: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontWeight: FontWeight.bold,
-          ),
-          em: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontStyle: FontStyle.italic,
-          ),
-          code: TextStyle(
-            backgroundColor: AppStyles.mBackground,
-            fontFamily: 'monospace',
-            fontSize: 13,
-          ),
-          codeblockDecoration: BoxDecoration(
-            color: AppStyles.mBackground,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          listBullet: TextStyle(color: AppStyles.mTextPrimary),
         ),
       );
     }

@@ -304,6 +304,16 @@ class ObjectBoxService {
     query.close();
   }
 
+  /// Get all calendar tasks for a specific project
+  List<CalendarTaskEntity> getTasksForProject(String projectId) {
+    final query = calendarTaskBox
+        .query(CalendarTaskEntity_.projectId.equals(projectId))
+        .build();
+    final tasks = query.find();
+    query.close();
+    return tasks;
+  }
+
   /// Toggle task completion status
   void toggleTaskCompletion(String uuid) {
     final task = getCalendarTaskByUuid(uuid);

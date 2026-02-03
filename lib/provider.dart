@@ -607,6 +607,20 @@ class DayCrafterProvider with ChangeNotifier {
     }
   }
 
+  /// Get all tasks for a specific project
+  List<Map<String, dynamic>> getTasksForProject(String projectId) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return [];
+
+    try {
+      final entities = db.getTasksForProject(projectId);
+      return entities.map((e) => e.toTaskMap()).toList();
+    } catch (e) {
+      debugPrint('❌ Error getting tasks for project: $e');
+      return [];
+    }
+  }
+
   /// Toggle task completion
   void toggleTaskCompletion(String taskId) {
     final db = ObjectBoxService.instance;
@@ -938,13 +952,60 @@ class DayCrafterProvider with ChangeNotifier {
 
       // Get all tasks in the project to ensure full context
       String projectContext = '';
+      if (_activeProjectId != null) {
+        final projectTasks = getTasksForProject(_activeProjectId!);
+        if (projectTasks.isNotEmpty) {
+          // Group tasks by completion status
+          final pendingTasks = projectTasks
+              .where((t) => t['isCompleted'] != true)
+              .toList();
+          final completedTasks = projectTasks
+              .where((t) => t['isCompleted'] == true)
+              .toList();
+
+          projectContext = '\n\n## EXISTING TASKS IN THIS PROJECT:\n';
+
+          if (pendingTasks.isNotEmpty) {
+            projectContext += '\n### Pending Tasks (${pendingTasks.length}):\n';
+            for (final task in pendingTasks.take(15)) {
+              // Limit to avoid token overflow
+              final taskName = task['task'] ?? 'Unnamed';
+              final dueDate = task['DueDate'] ?? 'No due date';
+              final priority = task['priority'] ?? 3;
+              final priorityLabel = priority == 1
+                  ? '🔴 High'
+                  : (priority == 2 ? '🟡 Medium' : '🟢 Low');
+              projectContext +=
+                  '- $taskName (Due: $dueDate, Priority: $priorityLabel)\n';
+            }
+            if (pendingTasks.length > 15) {
+              projectContext +=
+                  '... and ${pendingTasks.length - 15} more pending tasks\n';
+            }
+          }
+
+          if (completedTasks.isNotEmpty) {
+            projectContext +=
+                '\n### Completed Tasks (${completedTasks.length}):\n';
+            for (final task in completedTasks.take(5)) {
+              // Show fewer completed tasks
+              final taskName = task['task'] ?? 'Unnamed';
+              projectContext += '- ✅ $taskName\n';
+            }
+            if (completedTasks.length > 5) {
+              projectContext +=
+                  '... and ${completedTasks.length - 5} more completed tasks\n';
+            }
+          }
+        }
+      }
 
       // Build system prompt using LangChain short-term memory (token-efficient)
       String systemPrompt = _shortTermMemory.getSystemPrompt(
         projectName: activeProject?.name,
       );
 
-      // Inject the full project context
+      // Inject the full project context (tasks)
       systemPrompt += projectContext;
 
       // Add basic MCP context if needed, but keeping it clean as requested
@@ -960,6 +1021,8 @@ You are an autonomous assistant with helping user ${_userName ?? ''} to manage t
 You have access to tools. Use them whenever appropriate to help the user.
 If the user wants to schedule or plan tasks, use the "task_and_schedule_planer" tool.
 Always provide sources when you search the web.
+Do not talk about MCP tool to the user.
+Always use same language as the user.
 ''';
 
       if (_cancelledRequests.contains(requestId)) {
@@ -1342,10 +1405,27 @@ Always provide sources when you search the web.''';
                           _computeTimeToComplete(task);
                         }
 
+                        // Generate task summary for the AI message
+                        final taskSummary = tasks
+                            .map((t) {
+                              final name = t['task'] ?? 'Unnamed';
+                              final dueDate = t['DueDate'] ?? 'No due date';
+                              final priority = t['priority'] ?? 3;
+                              final priorityEmoji = priority == 1
+                                  ? '🔴'
+                                  : (priority == 2 ? '🟡' : '🟢');
+                              return '- $priorityEmoji **$name** (Due: $dueDate)';
+                            })
+                            .join('\n');
+
                         // Don't auto-save - attach tasks to message for display as task cards
                         // User clicks "Done" button to save to calendar
                         aiText =
-                            'I\'ve created ${tasks.length} tasks for you. Review them below:';
+                            '''Here's a summary of your planned tasks:
+
+$taskSummary
+
+Review and edit the tasks below, then click **Done** to add them to your calendar:''';
 
                         // Update message in project with tasks attached
                         if (_activeProjectId != null) {
