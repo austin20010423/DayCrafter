@@ -83,7 +83,8 @@ class _ChatViewState extends State<ChatView> {
 
   Future<void> _handleSubmit() async {
     final text = _inputController.text.trim();
-    if (text.isEmpty) return;
+    // Allow submission if there's text OR an attached file
+    if (text.isEmpty && _attachedFile == null) return;
 
     final provider = context.read<DayCrafterProvider>();
     if (provider.isLoading) return;
@@ -102,7 +103,12 @@ class _ChatViewState extends State<ChatView> {
     // Display text should not include file contents; only indicate filename
     String displayText = text;
     if (_attachedFile != null) {
-      displayText = '$displayText\n\n[Attached: $_attachedFile]';
+      if (text.isEmpty) {
+        // File-only submission
+        displayText = '[Attached: $_attachedFile]';
+      } else {
+        displayText = '$displayText\n\n[Attached: $_attachedFile]';
+      }
     }
 
     provider.sendMessage(
@@ -327,6 +333,11 @@ class _ChatViewState extends State<ChatView> {
             _attachedFilePath = path;
             _attachedFileType = 'voice';
           });
+          debugPrint('📎 Voice file uploaded successfully:');
+          debugPrint('   - Name: ${file.name}');
+          debugPrint('   - Path: $path');
+          debugPrint('   - Type: voice');
+          debugPrint('   - Ready to prompt: ✅');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${file.name} attached. Waiting for your message.'),
@@ -356,6 +367,11 @@ class _ChatViewState extends State<ChatView> {
             _attachedFilePath = path;
             _attachedFileType = 'text';
           });
+          debugPrint('📎 Text file uploaded successfully:');
+          debugPrint('   - Name: ${file.name}');
+          debugPrint('   - Path: $path');
+          debugPrint('   - Type: text');
+          debugPrint('   - Ready to prompt: ✅');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${file.name} attached. Waiting for your message.'),
@@ -607,11 +623,27 @@ class _ChatViewState extends State<ChatView> {
   Widget _buildMessageBubble(Message msg, {bool isStreaming = false}) {
     final isUser = msg.role == MessageRole.user;
 
+    // Parse for attachment if it's a user message
+    String? attachmentName;
+    String displayContent = msg.text;
+
+    if (isUser && msg.text.contains('[Attached:')) {
+      final RegExp attachmentRegex = RegExp(r'\[Attached: (.*?)\]');
+      final match = attachmentRegex.firstMatch(msg.text);
+      if (match != null) {
+        attachmentName = match.group(1) ?? '';
+        displayContent = msg.text.replaceAll(attachmentRegex, '').trim();
+      }
+    }
+
     // Determine what content to show for AI messages
     Widget aiContent;
     if (!isUser && msg.text.isEmpty && isStreaming) {
       // Show loading animation when streaming and content is empty
       aiContent = _buildThinkingAnimationContent();
+    } else if (!isUser && msg.text == '*Creating your tasks...*') {
+      // Show "Creating your tasks" animation with bouncing dots
+      aiContent = _buildCreatingTasksAnimationContent();
     } else {
       aiContent = SelectionArea(
         child: MarkdownBody(
@@ -673,6 +705,74 @@ class _ChatViewState extends State<ChatView> {
       );
     }
 
+    Widget bubbleContent = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: isUser ? AppStyles.mPrimary : AppStyles.mSurface,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(24),
+          topRight: const Radius.circular(24),
+          bottomLeft: Radius.circular(isUser ? 24 : 8),
+          bottomRight: Radius.circular(isUser ? 8 : 24),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Use markdown for AI responses, selectable text for user messages
+          if (isUser)
+            SelectableText(
+              displayContent.isEmpty
+                  ? ' '
+                  : displayContent, // Handle empty text (file only)
+              style: TextStyle(color: Colors.white, fontSize: 15, height: 1.6),
+            )
+          else
+            aiContent,
+          if (msg.isMcpConsent && msg.mcpInputPending != null) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppStyles.mPrimary,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    if (context.read<DayCrafterProvider>().isLoading) return;
+                    context.read<DayCrafterProvider>().approvePendingMcp(msg);
+                  },
+                  child: const Text('Yes'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppStyles.mTextSecondary,
+                  ),
+                  onPressed: () {
+                    if (context.read<DayCrafterProvider>().isLoading) return;
+                    context.read<DayCrafterProvider>().denyPendingMcp(msg);
+                  },
+                  child: const Text('No'),
+                ),
+              ],
+            ),
+          ],
+          if (msg.tasks != null && msg.tasks!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildTaskCards(msg.tasks!, msg.id),
+          ],
+        ],
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Row(
@@ -694,80 +794,27 @@ class _ChatViewState extends State<ChatView> {
             const SizedBox(width: 16),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: isUser ? AppStyles.mPrimary : AppStyles.mSurface,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(24),
-                  topRight: const Radius.circular(24),
-                  bottomLeft: Radius.circular(isUser ? 24 : 8),
-                  bottomRight: Radius.circular(isUser ? 8 : 24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 15,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Use markdown for AI responses, selectable text for user messages
-                  if (isUser)
-                    SelectableText(
-                      msg.text,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        height: 1.6,
-                      ),
-                    )
-                  else
-                    aiContent,
-                  if (msg.isMcpConsent && msg.mcpInputPending != null) ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppStyles.mPrimary,
-                            foregroundColor: Colors.white,
-                          ),
-                          onPressed: () {
-                            if (context.read<DayCrafterProvider>().isLoading)
-                              return;
-                            context
-                                .read<DayCrafterProvider>()
-                                .approvePendingMcp(msg);
-                          },
-                          child: const Text('Yes'),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppStyles.mTextSecondary,
-                          ),
-                          onPressed: () {
-                            if (context.read<DayCrafterProvider>().isLoading)
-                              return;
-                            context.read<DayCrafterProvider>().denyPendingMcp(
-                              msg,
-                            );
-                          },
-                          child: const Text('No'),
-                        ),
-                      ],
+            child: Column(
+              crossAxisAlignment: isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                if (attachmentName != null && attachmentName.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
+                    child: _GeminiFileChip(
+                      fileName: attachmentName,
+                      fileType:
+                          attachmentName.endsWith('.mp3') ||
+                              attachmentName.endsWith('.wav') ||
+                              attachmentName.endsWith('.m4a')
+                          ? 'voice'
+                          : 'text',
+                      onRemove: null,
                     ),
-                  ],
-                  if (msg.tasks != null && msg.tasks!.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    _buildTaskCards(msg.tasks!, msg.id),
-                  ],
-                ],
-              ),
+                  ),
+                bubbleContent,
+              ],
             ),
           ),
         ],
@@ -1209,6 +1256,24 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  Widget _buildCreatingTasksAnimationContent() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Creating your tasks',
+          style: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 15,
+            height: 1.6,
+          ),
+        ),
+        const SizedBox(width: 12),
+        _BouncingDots(color: AppStyles.mAccent),
+      ],
+    );
+  }
+
   Widget _buildInputBox(bool isInitial) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -1225,7 +1290,19 @@ class _ChatViewState extends State<ChatView> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // File chip area (Gemini style) - appears above input
+          if (_attachedFile != null)
+            _GeminiFileChip(
+              fileName: _attachedFile!,
+              fileType: _attachedFileType ?? 'text',
+              onRemove: () => setState(() {
+                _attachedFile = null;
+                _attachedFilePath = null;
+                _attachedFileType = null;
+              }),
+            ),
           TextField(
             controller: _inputController,
             maxLines: isInitial ? 3 : 6, // Increased for more visible text
@@ -1255,15 +1332,7 @@ class _ChatViewState extends State<ChatView> {
                     onTap: _showUploadPopup,
                   ),
                   if (_attachedFile != null) ...[
-                    const SizedBox(width: 12),
-                    _AttachedFileTag(
-                      fileName: _attachedFile!,
-                      onRemove: () => setState(() {
-                        _attachedFile = null;
-                        _attachedFilePath = null;
-                        _attachedFileType = null;
-                      }),
-                    ),
+                    // Old position removed
                   ],
                 ],
               ),
@@ -1392,39 +1461,84 @@ class _InputActionButton extends StatelessWidget {
   }
 }
 
-class _AttachedFileTag extends StatelessWidget {
+class _GeminiFileChip extends StatelessWidget {
   final String fileName;
-  final VoidCallback onRemove;
+  final String fileType;
+  final VoidCallback? onRemove; // Nullable for read-only mode
 
-  const _AttachedFileTag({required this.fileName, required this.onRemove});
+  const _GeminiFileChip({
+    required this.fileName,
+    required this.fileType,
+    this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Determine icon based on file type
+    IconData fileIcon = LucideIcons.fileText;
+    if (fileType == 'voice' || fileType == 'recording') {
+      fileIcon = LucideIcons.music;
+    } else if (fileName.endsWith('.pdf')) {
+      fileIcon = LucideIcons.file;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: BoxDecoration(
-        color: AppStyles.mAccent.withValues(alpha: 0.2),
-        borderRadius: AppStyles.bRadiusMedium,
-        border: Border.all(color: AppStyles.mAccent.withValues(alpha: 0.3)),
+        color: AppStyles.mSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppStyles.mPrimary.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(LucideIcons.fileText, size: 16, color: AppStyles.mTextPrimary),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppStyles.mPrimary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(fileIcon, size: 14, color: AppStyles.mPrimary),
+          ),
           const SizedBox(width: 10),
-          Text(
-            fileName,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppStyles.mTextPrimary,
+          Flexible(
+            child: Text(
+              fileName,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppStyles.mTextPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: onRemove,
-            child: Icon(LucideIcons.x, size: 16, color: AppStyles.mTextPrimary),
-          ),
+          const SizedBox(width: 8),
+          if (onRemove != null)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onRemove,
+                borderRadius: BorderRadius.circular(12),
+                hoverColor: Colors.red.withValues(alpha: 0.1),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    LucideIcons.x,
+                    size: 14,
+                    color: AppStyles.mTextSecondary,
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

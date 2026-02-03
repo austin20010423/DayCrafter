@@ -1793,13 +1793,48 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
 
     // If result is a string (JSON), parse it
     if (result is String) {
+      String jsonStr = result;
+
+      // Try direct parse first
       try {
-        final parsed = jsonDecode(result);
+        final parsed = jsonDecode(jsonStr);
         if (parsed is List) {
           return parsed.cast<Map<String, dynamic>>();
         }
+      } catch (_) {
+        // If direct parse fails, try to extract JSON from the string
+        // This handles cases where MCP returns "Thought: ..." before the JSON
+        debugPrint('Direct JSON parse failed, attempting to extract JSON...');
+      }
+
+      // Try to find and extract JSON array from the string
+      try {
+        // Look for JSON array starting with '['
+        final startIndex = jsonStr.indexOf('[');
+        if (startIndex != -1) {
+          // Find matching closing bracket
+          int bracketCount = 0;
+          int endIndex = -1;
+          for (int i = startIndex; i < jsonStr.length; i++) {
+            if (jsonStr[i] == '[') bracketCount++;
+            if (jsonStr[i] == ']') bracketCount--;
+            if (bracketCount == 0) {
+              endIndex = i;
+              break;
+            }
+          }
+
+          if (endIndex != -1 && endIndex > startIndex) {
+            final extractedJson = jsonStr.substring(startIndex, endIndex + 1);
+            final parsed = jsonDecode(extractedJson);
+            if (parsed is List) {
+              debugPrint('✅ Successfully extracted JSON array from MCP result');
+              return parsed.cast<Map<String, dynamic>>();
+            }
+          }
+        }
       } catch (e) {
-        debugPrint('Failed to parse MCP result as JSON: $e');
+        debugPrint('Failed to extract JSON from MCP result: $e');
       }
     }
 
