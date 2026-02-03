@@ -525,14 +525,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.11.1"
-  mcp_client:
+  mcp_dart:
     dependency: "direct main"
     description:
-      name: mcp_client
-      sha256: "7d157ecc80392d8085a581912f38967e708bea0b421146f5010af12e00cc87db"
+      name: mcp_dart
+      sha256: "9b4f808d739c563bd6c68b5829d6a7a7a5b0a15928927b8e548e30b66a61eb9b"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.2"
+    version: "1.2.2"
   meta:
     dependency: transitive
     description:
@@ -954,14 +954,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.5"
-  uuid:
-    dependency: transitive
-    description:
-      name: uuid
-      sha256: a11b666489b1954e01d992f3d601b1804a33937b5a8fe677bd26b8a9f96f96e8
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.5.2"
   vector_math:
     dependency: transitive
     description:

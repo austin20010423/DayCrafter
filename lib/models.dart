@@ -69,7 +69,15 @@ class Message {
           ? List<Map<String, dynamic>>.from(json['tasks'])
           : null,
       attachments: json['attachments'] != null
-          ? List<Map<String, String>>.from(json['attachments'])
+          ? (json['attachments'] as List)
+                .map(
+                  (a) => Map<String, String>.from(
+                    (a as Map).map(
+                      (k, v) => MapEntry(k.toString(), v.toString()),
+                    ),
+                  ),
+                )
+                .toList()
           : null,
       mcpInputPending: json['mcpInputPending'],
       isMcpConsent: json['isMcpConsent'] ?? false,

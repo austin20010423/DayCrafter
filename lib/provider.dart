@@ -5,8 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:http_parser/http_parser.dart';
-import 'package:openai_dart/openai_dart.dart' hide MessageRole;
-import 'package:mcp_client/mcp_client.dart' as mcp;
+import 'package:mcp_dart/mcp_dart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'models.dart';
@@ -16,45 +15,6 @@ import 'services/embedding_service.dart';
 import 'services/task_scheduler.dart';
 import 'services/local_auth_service.dart';
 import 'services/short_term_memory.dart';
-
-// ============================================================================
-// MCP Helper Functions
-// ============================================================================
-
-/// Detect marker like: [USE_MCP_TOOL: task_and_schedule_planer]
-Map<String, String?> detectMcpMarker(String gptText) {
-  // Look for the MCP marker format: [USE_MCP_TOOL: tool_name]
-  final re = RegExp(r'\[USE_MCP_TOOL:\s*([^\]]+)\]');
-  final m = re.firstMatch(gptText);
-  if (m == null) {
-    debugPrint(
-      'ℹ️  No MCP marker detected in GPT response (intent: pure chat)',
-    );
-    return {'tool': null, 'task': null};
-  }
-
-  final tool = m.group(1)!.trim();
-  debugPrint('🔍 MCP marker detected! Tool: $tool');
-
-  // Extract task text: look for [INPUT: ...] pattern
-  final inputRe = RegExp(r'\[INPUT:\s*([^\]]+)\]');
-  final inputMatch = inputRe.firstMatch(gptText);
-
-  String task = '';
-  if (inputMatch != null) {
-    task = inputMatch.group(1)!.trim();
-    debugPrint('📋 Found explicit [INPUT: ...] marker');
-  } else {
-    // Fallback: extract text after the tool marker
-    final after = gptText.substring(m.end).trim();
-    task = after.isNotEmpty
-        ? after
-        : gptText.replaceFirst(m.group(0)!, '').trim();
-    debugPrint('📋 Extracted task from context after marker');
-  }
-
-  return {'tool': tool, 'task': task};
-}
 
 // ============================================================================
 /// Calendar view types
@@ -89,7 +49,8 @@ class DayCrafterProvider with ChangeNotifier {
   bool _isApiAvailable = true;
 
   // MCP Client Integration
-  mcp.Client? _mcpClient;
+  McpClient? _mcpClient;
+  Process? _mcpProcess;
 
   // Navigation state
   NavItem _activeNavItem = NavItem.agent;
@@ -912,20 +873,6 @@ class DayCrafterProvider with ChangeNotifier {
     debugPrint('Starting AI response with MCP tool support...');
 
     try {
-      // Load API key from .env file (with fallback if dotenv not loaded)
-      String apiKey;
-      try {
-        if (!dotenv.isInitialized) {
-          await dotenv.load(fileName: ".env");
-        }
-        apiKey = dotenv.env['OPENAI_API_KEY'] ?? 'YOUR_OPENAI_API_KEY';
-      } catch (e) {
-        debugPrint(
-          'Dotenv error: $e - check that .env file exists in project root',
-        );
-        apiKey = 'YOUR_OPENAI_API_KEY';
-      }
-
       // Build user message with attachments
       String userMessage = userText;
       if (attachments != null && attachments.isNotEmpty) {
@@ -987,215 +934,553 @@ class DayCrafterProvider with ChangeNotifier {
         systemPrompt += '\nTask Changelog: $changelog';
       }
 
-      // Add MCP tool requirements
+      // Add instructions for native tool usage
       systemPrompt +=
           '''
 You are an autonomous assistant with helping user ${_userName ?? ''} to manage their schedule. 
-Only response with 繁體中文 or English.
 
-CRITICAL - MCP TOOL USAGE RULES:
-Always use the task_and_schedule_planer tool when the user has STRONG and EXPLICIT intent to:
-- Actually CREATE or SCHEDULE tasks on the calendar
-- Request you to PLAN or BREAK DOWN a project into tasks
-- Ask you to ORGANIZE or RESCHEDULE existing tasks
-- Use action words like: "schedule", "plan", "create task", "add to calendar", "break down", "organize my tasks"
-
-DO NOT use the tool for:
-- Casual conversation about tasks or plans
-- Questions about how to do something
-- General advice or suggestions
-- When user is just mentioning or discussing tasks without asking to create them
-- Hypothetical scenarios ("what if I...", "should I...")
-
-When in doubt, respond conversationally and ask if the user wants you to actually create/schedule the tasks.
-
-AVAILABLE TOOLS:
-- task_and_schedule_planer: Use ONLY when user explicitly wants to create, schedule, or organize tasks.
-
-FORMAT TO CALL TOOLS:
-If you need to use a tool, your response MUST contain ONLY the following format:
-[USE_MCP_TOOL: task_and_schedule_planer]
-[INPUT: <what you want the tool to do>]
-
-Project: "${activeProject?.name}"''';
+You have access to tools. Use them whenever appropriate to help the user.
+If the user wants to schedule or plan tasks, use the "task_and_schedule_planer" tool.
+Always provide sources when you search the web.
+''';
 
       if (_cancelledRequests.contains(requestId)) {
         debugPrint('Request $requestId cancelled before API call');
         return;
       }
 
-      // Construct a single input string for gpt-5-nano
-      // We format the history as a dialogue transcript
-      final client = OpenAIClient(apiKey: apiKey);
+      // Use Responses API with web search tool - model decides when to search
+      await _getResponsesApiResponse(userMessage, systemPrompt, requestId);
+      return;
+    } catch (e) {
+      debugPrint('AI Error: $e');
+      await sendMessage(
+        "Failed to connect to AI service. Please check your OpenAI API key.",
+        MessageRole.model,
+      );
+    }
+    debugPrint('AI response completed');
+  }
 
-      final messages = <ChatCompletionMessage>[
-        ChatCompletionMessage.system(content: systemPrompt),
-      ];
+  /// Use the Responses API with web search capability
+  /// The model will automatically decide when to search based on instructions
+  Future<void> _getResponsesApiResponse(
+    String userQuery,
+    String systemPrompt,
+    int requestId,
+  ) async {
+    debugPrint('═' * 60);
+    debugPrint('🤖 RESPONSES API WITH WEB SEARCH');
+    debugPrint('═' * 60);
 
-      // Add history
+    // Ensure dotenv is loaded
+    if (!dotenv.isInitialized) {
+      try {
+        await dotenv.load(fileName: ".env");
+      } catch (e) {
+        debugPrint('Dotenv error: $e');
+      }
+    }
+
+    final apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+    if (apiKey.isEmpty) {
+      await sendMessage(
+        "OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.",
+        MessageRole.model,
+      );
+      return;
+    }
+
+    // Create a placeholder message for the AI response
+    final assistantMessageId = DateTime.now().millisecondsSinceEpoch.toString();
+    final assistantMessage = Message(
+      id: assistantMessageId,
+      role: MessageRole.model,
+      text: '',
+      timestamp: DateTime.now(),
+    );
+
+    // Add placeholder to project immediately
+    if (_activeProjectId != null) {
+      final projectIndex = _projects.indexWhere(
+        (p) => p.id == _activeProjectId,
+      );
+      if (projectIndex != -1) {
+        final updatedProject = _projects[projectIndex].copyWith(
+          messages: [..._projects[projectIndex].messages, assistantMessage],
+        );
+        _projects[projectIndex] = updatedProject;
+        notifyListeners();
+      }
+    }
+
+    try {
+      // Initialize MCP client early so it's ready for tool calls
+      if (_mcpClient == null) {
+        await _initMcpClient();
+      }
+
+      // Build conversation history as structured messages using formal item format
       final history = _shortTermMemory.getMessages();
+      final List<Map<String, dynamic>> items = [];
       for (final msg in history) {
-        if (msg['role'] == 'user') {
-          messages.add(
-            ChatCompletionMessage.user(
-              content: ChatCompletionUserMessageContent.string(
-                msg['content'] ?? '',
-              ),
-            ),
-          );
-        } else {
-          messages.add(
-            ChatCompletionMessage.assistant(content: msg['content'] ?? ''),
-          );
+        final role = msg['role'] == 'user' ? 'user' : 'assistant';
+        items.add({
+          'type': 'message',
+          'role': role,
+          'content': [
+            {
+              'type': role == 'user' ? 'input_text' : 'output_text',
+              'text': msg['content'] ?? '',
+            },
+          ],
+        });
+      }
+      items.add({
+        'type': 'message',
+        'role': 'user',
+        'content': [
+          {'type': 'input_text', 'text': userQuery},
+        ],
+      });
+
+      // Combine user system prompt with basic instructions
+      final instructions = '''$systemPrompt
+
+You are a helpful AI assistant with web search and task planning capabilities. 
+If a query involves current events, recent news, real-time data, or up-to-date information, use the web search tool.
+If a user wants to plan, schedule, or organize tasks, use the task_and_schedule_planer tool.
+Always provide sources when you search the web.''';
+
+      debugPrint('🔍 Sending streaming request via Responses API...');
+
+      // Use streaming HTTP request
+      final request = http.Request(
+        'POST',
+        Uri.parse('https://api.openai.com/v1/responses'),
+      );
+      request.headers.addAll({
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      });
+      request.body = jsonEncode({
+        'model': 'gpt-5-nano',
+        'instructions': instructions,
+        'input': items,
+        'tools': [
+          {'type': 'web_search', 'search_context_size': 'medium'},
+          {
+            'type': 'function',
+            'name': 'task_and_schedule_planer',
+            'description':
+                'Plan and schedule tasks for the user. Use when user wants to create, organize, plan, or schedule tasks.',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'topic': {
+                  'type': 'string',
+                  'description': 'The task description or query from the user',
+                },
+              },
+              'required': ['topic'],
+            },
+          },
+        ],
+        'tool_choice': 'auto',
+        'reasoning': {'effort': 'low'},
+        'stream': true,
+      });
+
+      final streamedResponse = await http.Client().send(request);
+
+      debugPrint('Response status: ${streamedResponse.statusCode}');
+
+      if (_cancelledRequests.contains(requestId)) {
+        debugPrint('Request $requestId cancelled after starting stream');
+        return;
+      }
+
+      if (streamedResponse.statusCode != 200) {
+        final body = await streamedResponse.stream.bytesToString();
+        debugPrint('API Error: $body');
+        throw Exception('API error: ${streamedResponse.statusCode}');
+      }
+
+      String aiText = '';
+      String responseId = '';
+      final annotations = <Map<String, dynamic>>[];
+      String buffer = ''; // Buffer for incomplete SSE messages
+
+      // Track pending function calls by item_id
+      final pendingFunctionCalls = <String, Map<String, dynamic>>{};
+
+      // Flag to skip text accumulation when function call is in progress
+      bool skipTextAccumulation = false;
+
+      // Process the SSE stream with buffering
+      await for (final chunk in streamedResponse.stream.transform(
+        utf8.decoder,
+      )) {
+        if (_cancelledRequests.contains(requestId)) {
+          debugPrint('Request $requestId cancelled during stream');
+          return;
+        }
+
+        // Add chunk to buffer
+        // debugPrint('📥 Chunk: $chunk'); // Uncomment for deep debugging
+        buffer += chunk;
+
+        // Process complete SSE messages (ended by double newline)
+        while (buffer.contains('\n\n')) {
+          final messageEnd = buffer.indexOf('\n\n');
+          final message = buffer.substring(0, messageEnd);
+          buffer = buffer.substring(messageEnd + 2);
+
+          // Process each line in the message to extract and join 'data:' content
+          final lines = message.split('\n');
+          String eventData = '';
+          for (final line in lines) {
+            if (line.startsWith('data: ')) {
+              eventData +=
+                  '${eventData.isEmpty ? '' : '\n'}${line.substring(6).trim()}';
+            }
+          }
+
+          if (eventData.isNotEmpty && eventData != '[DONE]') {
+            try {
+              final event = jsonDecode(eventData);
+              final type = event['type'] as String?;
+
+              // LOG EVERYTHING FOR DEBUGGING (commented out to reduce noise)
+              // debugPrint('📡 Event: $type');
+
+              if (type == 'error' || type == 'response.error') {
+                debugPrint('⚠️ ERROR EVENT: $eventData');
+                final error = event['error'] as Map<String, dynamic>?;
+                if (error != null) {
+                  aiText += '\n\n*Error: ${error['message'] ?? 'Unknown'}*\n';
+                }
+              }
+
+              if (type == 'response.created') {
+                responseId = event['response']['id'];
+                debugPrint('🆔 Response ID: $responseId');
+              } else if (type == 'response.output_text.delta' ||
+                  type == 'response.text.delta' ||
+                  event.containsKey('delta')) {
+                // Skip text accumulation if we're in a function call
+                if (skipTextAccumulation) continue;
+
+                // Comprehensive delta extraction
+                var delta = '';
+                if (event['delta'] != null) {
+                  if (event['delta'] is String) {
+                    delta = event['delta'];
+                  } else if (event['delta'] is Map &&
+                      event['delta']['content'] != null) {
+                    delta = event['delta']['content'];
+                  }
+                } else if (event['text'] != null) {
+                  delta = event['text'];
+                }
+
+                if (delta.isNotEmpty) {
+                  aiText += delta;
+
+                  // Progressively update UI
+                  if (_activeProjectId != null) {
+                    final projectIndex = _projects.indexWhere(
+                      (p) => p.id == _activeProjectId,
+                    );
+                    if (projectIndex != -1) {
+                      final currentMessages = List<Message>.from(
+                        _projects[projectIndex].messages,
+                      );
+                      final msgIndex = currentMessages.indexWhere(
+                        (m) => m.id == assistantMessageId,
+                      );
+                      if (msgIndex != -1) {
+                        currentMessages[msgIndex] = currentMessages[msgIndex]
+                            .copyWith(text: aiText);
+                        _projects[projectIndex] = _projects[projectIndex]
+                            .copyWith(messages: currentMessages);
+                        notifyListeners();
+                      }
+                    }
+                  }
+                }
+              } else if (type == 'response.output_text.annotation.added') {
+                // Collect annotations for later
+                final annotation = event['annotation'] as Map<String, dynamic>?;
+                if (annotation != null) {
+                  annotations.add(annotation);
+                }
+              } else if (type == 'response.output_item.added') {
+                // Track function call metadata when output item is added
+                final item = event['item'] as Map<String, dynamic>?;
+                if (item != null && item['type'] == 'function_call') {
+                  // Stop accumulating text - we're in a function call
+                  skipTextAccumulation = true;
+
+                  // Clear any text that was streamed (it's the tool arguments)
+                  // and show a placeholder message
+                  aiText = '*Creating your tasks...*';
+
+                  // Update UI immediately to hide the raw JSON
+                  if (_activeProjectId != null) {
+                    final projectIndex = _projects.indexWhere(
+                      (p) => p.id == _activeProjectId,
+                    );
+                    if (projectIndex != -1) {
+                      final currentMessages = List<Message>.from(
+                        _projects[projectIndex].messages,
+                      );
+                      final msgIndex = currentMessages.indexWhere(
+                        (m) => m.id == assistantMessageId,
+                      );
+                      if (msgIndex != -1) {
+                        currentMessages[msgIndex] = currentMessages[msgIndex]
+                            .copyWith(text: aiText);
+                        _projects[projectIndex] = _projects[projectIndex]
+                            .copyWith(messages: currentMessages);
+                        notifyListeners();
+                      }
+                    }
+                  }
+
+                  final itemId = item['id'] as String?;
+                  final callId = item['call_id'] as String?;
+                  final name = item['name'] as String?;
+                  if (itemId != null) {
+                    pendingFunctionCalls[itemId] = {
+                      'name': name,
+                      'call_id': callId,
+                    };
+                  }
+                }
+              } else if (type == 'response.function_call_arguments.done') {
+                // Function call completed - look up tracked metadata
+                final itemId = event['item_id'] as String?;
+                final arguments = event['arguments'] as String?;
+
+                // Look up the function call metadata we tracked earlier
+                final fcMeta = itemId != null
+                    ? pendingFunctionCalls[itemId]
+                    : null;
+                final name = fcMeta?['name'] as String?;
+                final callId = fcMeta?['call_id'] as String?;
+
+                if (name == 'task_and_schedule_planer' &&
+                    arguments != null &&
+                    callId != null) {
+                  String? topic;
+                  try {
+                    final argsJson = jsonDecode(arguments);
+                    topic = argsJson['topic'] as String?;
+                  } catch (e) {
+                    debugPrint('Error parsing tool arguments: $e');
+                  }
+
+                  if (topic != null && _isApiAvailable) {
+                    // Initialize MCP client if not already initialized
+                    if (_mcpClient == null) {
+                      await _initMcpClient();
+                    }
+
+                    if (_mcpClient == null) {
+                      aiText +=
+                          '\n\n*Error: Task planning service unavailable.*\n';
+                      notifyListeners();
+                      continue;
+                    }
+
+                    // Don't show the raw topic - just process silently
+                    try {
+                      final result = await _mcpClient!.callTool(
+                        CallToolRequest(
+                          name: 'task_and_schedule_planer',
+                          arguments: {'topic': topic},
+                        ),
+                      );
+
+                      // Process result
+                      final content = result.content;
+                      String toolOutput = '';
+                      if (content.isNotEmpty) {
+                        final dynamic first = content.first;
+                        try {
+                          toolOutput = first.text;
+                        } catch (_) {
+                          toolOutput = first.toString();
+                        }
+                      }
+
+                      // Parse the JSON output into tasks
+                      final tasks = _parseMcpResult(toolOutput);
+
+                      if (tasks.isNotEmpty) {
+                        // Compute TimeToComplete for each task
+                        for (final task in tasks) {
+                          _computeTimeToComplete(task);
+                        }
+
+                        // Don't auto-save - attach tasks to message for display as task cards
+                        // User clicks "Done" button to save to calendar
+                        aiText =
+                            'I\'ve created ${tasks.length} tasks for you. Review them below:';
+
+                        // Update message in project with tasks attached
+                        if (_activeProjectId != null) {
+                          final projectIndex = _projects.indexWhere(
+                            (p) => p.id == _activeProjectId,
+                          );
+                          if (projectIndex != -1) {
+                            final currentMessages = List<Message>.from(
+                              _projects[projectIndex].messages,
+                            );
+                            final msgIndex = currentMessages.indexWhere(
+                              (m) => m.id == assistantMessageId,
+                            );
+                            if (msgIndex != -1) {
+                              currentMessages[msgIndex] =
+                                  currentMessages[msgIndex].copyWith(
+                                    text: aiText,
+                                    tasks:
+                                        tasks, // Attach tasks for card display
+                                  );
+                              _projects[projectIndex] = _projects[projectIndex]
+                                  .copyWith(messages: currentMessages);
+                            }
+                          }
+                        }
+                      } else {
+                        aiText +=
+                            '\n\n*No tasks could be created from the plan.*\n';
+
+                        // Update message in project
+                        if (_activeProjectId != null) {
+                          final projectIndex = _projects.indexWhere(
+                            (p) => p.id == _activeProjectId,
+                          );
+                          if (projectIndex != -1) {
+                            final currentMessages = List<Message>.from(
+                              _projects[projectIndex].messages,
+                            );
+                            final msgIndex = currentMessages.indexWhere(
+                              (m) => m.id == assistantMessageId,
+                            );
+                            if (msgIndex != -1) {
+                              currentMessages[msgIndex] =
+                                  currentMessages[msgIndex].copyWith(
+                                    text: aiText,
+                                  );
+                              _projects[projectIndex] = _projects[projectIndex]
+                                  .copyWith(messages: currentMessages);
+                            }
+                          }
+                        }
+                      }
+
+                      notifyListeners();
+                    } catch (e) {
+                      debugPrint('MCP Tool Execution Error: $e');
+                      aiText += '\n\n*Error executing plan: $e*';
+                      notifyListeners();
+                    }
+                  }
+                }
+              } else if (type == 'response.error') {
+                final error = event['error'] as Map<String, dynamic>?;
+                if (error != null) {
+                  final msg = error['message'] as String? ?? 'Unknown error';
+                  debugPrint('⚠️ AI Response Error Event: $msg');
+                  aiText += '\n\n*System Error: $msg*\n';
+                }
+              } else if (type == 'response.completed') {
+                // Final response - extract any remaining data
+                final response = event['response'] as Map<String, dynamic>?;
+                if (response != null) {
+                  final outputText = response['output_text'] as String?;
+                  final status = response['status'] as String?;
+
+                  if (status == 'failed') {
+                    final error = response['error'] as Map<String, dynamic>?;
+                    if (error != null) {
+                      final msg = error['message'] as String? ?? 'FAILED';
+                      aiText += '\n\n*Response failed: $msg*\n';
+                    }
+                  }
+
+                  if (outputText != null && outputText.isNotEmpty) {
+                    // Only use if aiText is currently very short (mostly status markers)
+                    if (aiText.length < 50 ||
+                        !aiText.contains(
+                          outputText.substring(
+                            0,
+                            math.min(10, outputText.length),
+                          ),
+                        )) {
+                      if (aiText.isNotEmpty) aiText += '\n\n';
+                      aiText += outputText;
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              // Skip malformed JSON - might still be partial
+              debugPrint('Stream parse error (may recover): $e');
+            }
+          }
         }
       }
 
-      // Add current user message
-      messages.add(
-        ChatCompletionMessage.user(
-          content: ChatCompletionUserMessageContent.string(userMessage),
-        ),
-      );
+      // Add sources from annotations
+      if (annotations.isNotEmpty) {
+        aiText += '\n\n**Sources:**\n';
+        final uniqueUrls = <String>{};
+        for (final annotation in annotations) {
+          final url = annotation['url'] as String?;
+          if (url != null && !uniqueUrls.contains(url)) {
+            uniqueUrls.add(url);
+            final title = annotation['title'] as String? ?? url;
+            aiText += '- [$title]($url)\n';
+          }
+        }
+      }
 
-      // Create a placeholder message for the AI response
-      final assistantMessageId = DateTime.now().millisecondsSinceEpoch
-          .toString();
-      final assistantMessage = Message(
-        id: assistantMessageId,
-        role: MessageRole.model,
-        text: '', // Start empty
-        timestamp: DateTime.now(),
-      );
+      if (aiText.isEmpty) {
+        aiText = "I couldn't generate a response. Please try again.";
+      }
 
-      // Add placeholder to project immediately
+      debugPrint('✅ Stream completed. Length: ${aiText.length} chars');
+
+      // Final update to ensure complete text is saved
       if (_activeProjectId != null) {
         final projectIndex = _projects.indexWhere(
           (p) => p.id == _activeProjectId,
         );
         if (projectIndex != -1) {
-          final updatedProject = _projects[projectIndex].copyWith(
-            messages: [..._projects[projectIndex].messages, assistantMessage],
+          final currentMessages = List<Message>.from(
+            _projects[projectIndex].messages,
           );
-          _projects[projectIndex] = updatedProject;
-          notifyListeners();
-        }
-      }
-
-      var aiText = '';
-      bool fallbackNeeded = false;
-
-      try {
-        final request = CreateChatCompletionRequest(
-          model: const ChatCompletionModel.modelId('gpt-5-nano'),
-          messages: messages,
-          reasoningEffort: ReasoningEffort.low,
-        );
-
-        debugPrint('--- Attempting Stream ---');
-        final stream = client.createChatCompletionStream(request: request);
-
-        await for (final chunk in stream) {
-          if (_cancelledRequests.contains(requestId)) {
-            debugPrint('Request $requestId cancelled during stream');
-            return;
-          }
-
-          final content = chunk.choices?.firstOrNull?.delta?.content ?? "";
-          if (content.isNotEmpty) {
-            aiText += content;
-
-            // Update the message in place
-            if (_activeProjectId != null) {
-              final projectIndex = _projects.indexWhere(
-                (p) => p.id == _activeProjectId,
-              );
-              if (projectIndex != -1) {
-                final currentMessages = List<Message>.from(
-                  _projects[projectIndex].messages,
-                );
-                final msgIndex = currentMessages.indexWhere(
-                  (m) => m.id == assistantMessageId,
-                );
-
-                if (msgIndex != -1) {
-                  currentMessages[msgIndex] = currentMessages[msgIndex]
-                      .copyWith(text: aiText);
-
-                  final updatedProject = _projects[projectIndex].copyWith(
-                    messages: currentMessages,
-                  );
-                  _projects[projectIndex] = updatedProject;
-                  notifyListeners();
-                }
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // Check for verification/unsupported value error
-        if (e.toString().contains('unsupported_value') ||
-            e.toString().contains('verify')) {
-          debugPrint(
-            "\n[System] Streaming blocked: Verification required. Falling back...",
+          final msgIndex = currentMessages.indexWhere(
+            (m) => m.id == assistantMessageId,
           );
-          fallbackNeeded = true;
-        } else {
-          debugPrint('Stream Error: $e');
-          // For other errors, rethrow to be caught by outer block
-          throw e;
-        }
-      }
 
-      // FALLBACK: Execute a standard request if streaming failed due to verification
-      if (fallbackNeeded) {
-        if (_cancelledRequests.contains(requestId)) return;
-
-        final response = await client.createChatCompletion(
-          request: CreateChatCompletionRequest(
-            model: const ChatCompletionModel.modelId('gpt-5-nano'),
-            messages: messages,
-            reasoningEffort: ReasoningEffort.low,
-          ),
-        );
-
-        aiText =
-            response.choices.first.message.content ??
-            "I'm sorry, I couldn't generate a response.";
-
-        // Update the placeholder with full text
-        if (_activeProjectId != null) {
-          final projectIndex = _projects.indexWhere(
-            (p) => p.id == _activeProjectId,
-          );
-          if (projectIndex != -1) {
-            final currentMessages = List<Message>.from(
-              _projects[projectIndex].messages,
+          if (msgIndex != -1) {
+            currentMessages[msgIndex] = currentMessages[msgIndex].copyWith(
+              text: aiText,
             );
-            final msgIndex = currentMessages.indexWhere(
-              (m) => m.id == assistantMessageId,
+            final updatedProject = _projects[projectIndex].copyWith(
+              messages: currentMessages,
             );
-
-            if (msgIndex != -1) {
-              currentMessages[msgIndex] = currentMessages[msgIndex].copyWith(
-                text: aiText,
-              );
-              final updatedProject = _projects[projectIndex].copyWith(
-                messages: currentMessages,
-              );
-              _projects[projectIndex] = updatedProject;
-              notifyListeners();
-            }
+            _projects[projectIndex] = updatedProject;
+            notifyListeners();
           }
         }
       }
 
-      // If text is empty after both attempts (and no error thrown), set default
-      if (aiText.isEmpty && !fallbackNeeded) {
-        aiText = "I'm sorry, I couldn't generate a response.";
-        // Final update if needed...
-      }
-
-      // Save complete message to storage
+      // Save to storage
       await _saveProjects();
 
       // Add to memory
@@ -1206,105 +1491,43 @@ Project: "${activeProject?.name}"''';
       );
 
       // Save for semantic search
-      final finalMsg = Message(
-        id: assistantMessageId,
-        role: MessageRole.model,
-        text: aiText,
-        timestamp: DateTime.now(),
-      ); // Re-create to ensure clean state
-
       if (_activeProjectId != null) {
+        final finalMsg = Message(
+          id: assistantMessageId,
+          role: MessageRole.model,
+          text: aiText,
+          timestamp: DateTime.now(),
+        );
         _saveMessageToObjectBox(finalMsg, _activeProjectId!);
       }
+    } catch (e) {
+      debugPrint('Responses API Error: $e');
 
-      debugPrint('─' * 60);
-      debugPrint('📊 INTENT DETECTION & MCP TRIGGER CHECK');
-      debugPrint('─' * 60);
-      debugPrint(
-        '📊 Memory tokens: ${_shortTermMemory.getEstimatedTokens()}, Messages: ${_shortTermMemory.getMessageCount()}',
-      );
-      final truncatedQuery = userText.length > 100
-          ? '${userText.substring(0, 100)}...'
-          : userText;
-      debugPrint('User query: "$truncatedQuery"');
-      debugPrint('GPT response length: ${aiText.length} chars');
-
-      // Check if GPT wants to use the MCP tool
-      final mcpMarker = detectMcpMarker(aiText);
-
-      if (mcpMarker['tool'] != null) {
-        if (_isApiAvailable) {
-          debugPrint('═' * 60);
-          debugPrint('🎯 INTENT CLASSIFIED: TASK PLANNING / SCHEDULING');
-          debugPrint('═' * 60);
-          debugPrint('✅ MCP tool trigger detected: ${mcpMarker['tool']}');
-
-          // Extract the task input for the MCP tool
-          final mcpInput = mcpMarker['task'] ?? userText;
-          debugPrint(
-            '📝 Task input prepared for MCP: ${mcpInput.length} chars',
+      // Update placeholder with error message
+      final errorText = 'Sorry, I encountered an error. Please try again.';
+      if (_activeProjectId != null) {
+        final projectIndex = _projects.indexWhere(
+          (p) => p.id == _activeProjectId,
+        );
+        if (projectIndex != -1) {
+          final currentMessages = List<Message>.from(
+            _projects[projectIndex].messages,
           );
-
-          // Request user consent before invoking tool
-          debugPrint('✋ Asking user for consent to use MCP tool...');
-
-          await sendMessage(
-            "I can help you plan and schedule these tasks using the Calendar Agent. Would you like me to proceed?",
-            MessageRole.model,
-            isMcpConsent: true,
-            mcpInputPending: mcpInput,
+          final msgIndex = currentMessages.indexWhere(
+            (m) => m.id == assistantMessageId,
           );
-          return;
-        } else {
-          debugPrint(
-            '⚠️  MCP tool marker detected but API unavailable - using fallback mode',
-          );
-
-          // If MCP failed, remove the markers and send GPT's response anyway
-          aiText = aiText
-              .replaceAll(RegExp(r'\[USE_MCP_TOOL:.*?\]'), '')
-              .replaceAll(RegExp(r'\[INPUT:.*?\]'), '')
-              .trim();
-
-          // Update message with cleaned text
-          if (_activeProjectId != null) {
-            final projectIndex = _projects.indexWhere(
-              (p) => p.id == _activeProjectId,
+          if (msgIndex != -1) {
+            currentMessages[msgIndex] = currentMessages[msgIndex].copyWith(
+              text: errorText,
             );
-            if (projectIndex != -1) {
-              final currentMessages = List<Message>.from(
-                _projects[projectIndex].messages,
-              );
-              final msgIndex = currentMessages.indexWhere(
-                (m) => m.id == assistantMessageId,
-              );
-              if (msgIndex != -1) {
-                currentMessages[msgIndex] = currentMessages[msgIndex].copyWith(
-                  text: aiText,
-                );
-                _projects[projectIndex] = _projects[projectIndex].copyWith(
-                  messages: currentMessages,
-                );
-                notifyListeners();
-                await _saveProjects();
-              }
-            }
+            _projects[projectIndex] = _projects[projectIndex].copyWith(
+              messages: currentMessages,
+            );
+            notifyListeners();
           }
         }
-      } else {
-        debugPrint('═' * 60);
-        debugPrint('💬 INTENT CLASSIFIED: PURE CHAT / CONVERSATION');
-        debugPrint('═' * 60);
       }
-      debugPrint('');
-    } catch (e) {
-      debugPrint('AI Error: $e');
-      await sendMessage(
-        "Failed to connect to AI service. Please check your OpenAI API key.",
-        MessageRole.model,
-      );
     }
-    debugPrint('AI response completed');
   }
 
   /// Cancel the current in-flight AI request (best-effort).
@@ -1350,103 +1573,58 @@ Project: "${activeProject?.name}"''';
       debugPrint('🔌 Initializing MCP Client connection...');
 
       // Path to python server script
+      const serverPath =
+          '/Users/chenchaoshiang/SideProject/AI_Calendar/CrewAI-Driven-Calendar/mcp_server.py';
 
-      String serverPath = '';
-
-      // Try relative to project root
-      final possiblePaths = [
-        '../CrewAI-Driven-Calendar/mcp_server.py',
-        'CrewAI-Driven-Calendar/mcp_server.py',
-        '/Users/chenchaoshiang/SideProject/AI_Calendar/CrewAI-Driven-Calendar/mcp_server.py',
-      ];
-
-      for (final path in possiblePaths) {
-        if (await File(path).exists()) {
-          serverPath = path;
-          break;
-        }
-      }
-
-      if (serverPath.isEmpty) {
-        serverPath = '../CrewAI-Driven-Calendar/mcp_server.py';
-        debugPrint(
-          '⚠️ Could not find mcp_server.py relatively, using default relative path: $serverPath',
-        );
-      } else {
-        debugPrint('✅ Found MCP server at: $serverPath');
-      }
-
+      // Check for virtual environment
       String pythonCommand = 'python3';
-
-      // Check for virtual environment usage
-      final venvPath = File(
+      final venvPython = File(
         serverPath.replaceAll('mcp_server.py', '.venv/bin/python'),
       );
-      if (await venvPath.exists()) {
-        pythonCommand = venvPath.path;
+      if (await venvPython.exists()) {
+        pythonCommand = venvPython.path;
         debugPrint('✅ Using virtual environment python: $pythonCommand');
       }
 
-      // Create stdio transport (Standardized JSON-RPC 2.0)
-      final transportResult = await mcp.McpClient.createStdioTransport(
-        command: pythonCommand,
-        arguments: [serverPath],
-        environment: {'PYTHONUNBUFFERED': '1'},
+      // Launch Python process
+      _mcpProcess = await Process.start(pythonCommand, [serverPath]);
+      debugPrint('✅ Python process started (PID: ${_mcpProcess!.pid})');
+
+      // Connect via IOStreamTransport (mcp_dart uses this for stdio)
+      final transport = IOStreamTransport(
+        stream: _mcpProcess!.stdout,
+        sink: _mcpProcess!.stdin,
       );
 
-      final dynamic result = transportResult;
-      // Attempt to access common properties for Result type using dynamic dispatch
-      // since the exact API is not exposed or documentation is unavailable.
-      var transport;
-      try {
-        transport = result.success;
-      } catch (_) {}
-      try {
-        transport ??= result.value;
-      } catch (_) {}
-      try {
-        transport ??= result.result;
-      } catch (_) {}
-      try {
-        transport ??= result.data;
-      } catch (_) {}
-
-      if (transport == null) {
-        // Fallback: maybe it has a `transport` property?
-        try {
-          transport ??= result.transport;
-        } catch (_) {}
-      }
-
-      if (transport == null) {
-        debugPrint('⚠️ Could not unwrap Result type: ${result.runtimeType}');
-        // If it was an error, try to print it
-        try {
-          debugPrint('Error content: ${result.error}');
-        } catch (_) {}
-        try {
-          debugPrint('Failure content: ${result.failure}');
-        } catch (_) {}
-        throw Exception("Unknown Result API");
-      }
-
-      _mcpClient = mcp.McpClient.createClient(
-        mcp.McpClientConfig(name: "DayCrafterClient", version: "1.0.0"),
+      // Create client with implementation info
+      _mcpClient = McpClient(
+        Implementation(name: 'DayCrafterClient', version: '1.0.0'),
       );
 
+      // Connect to transport
       await _mcpClient!.connect(transport);
+
       debugPrint('✅ Connected to MCP Server!');
 
       // List tools to verify
-      final tools = await _mcpClient!.listTools();
+      final toolsResult = await _mcpClient!.listTools();
+      final toolsList = toolsResult.tools;
       debugPrint(
-        '🛠️ Discovered ${tools.length} MCP tools: ${tools.map((t) => t.name).join(", ")}',
+        '🛠️ Discovered ${toolsList.length} MCP tools: ${toolsList.map((t) => t.name).join(", ")}',
       );
       _isApiAvailable = true;
     } catch (e) {
       debugPrint('❌ Failed to initialize MCP client: $e');
       _isApiAvailable = false;
     }
+  }
+
+  /// Dispose MCP client and kill Python process
+  void disposeMcpClient() {
+    _mcpProcess?.kill();
+    _mcpClient = null;
+    _isApiAvailable = false;
+    debugPrint('🔌 MCP Client disposed');
   }
 
   Future<List<Map<String, dynamic>>?> _getTasks(String userText) async {
@@ -1466,16 +1644,19 @@ Project: "${activeProject?.name}"''';
       debugPrint('🚀 Calling MCP tool: task_and_schedule_planer');
 
       // Call the tool
-      final result = await _mcpClient!.callTool('task_and_schedule_planer', {
-        'topic': userText,
-      });
+      final result = await _mcpClient!.callTool(
+        CallToolRequest(
+          name: 'task_and_schedule_planer',
+          arguments: {'topic': userText},
+        ),
+      );
 
       // Extract text content from result
       String rawResult = '';
       if (result.content.isNotEmpty) {
         // Assuming the first content block is the text result
         final block = result.content.first;
-        if (block is mcp.TextContent) {
+        if (block is TextContent) {
           rawResult = block.text;
         } else {
           debugPrint('⚠️ Unexpected content type: ${block.runtimeType}');
