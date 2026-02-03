@@ -316,6 +316,12 @@ class DayCrafterProvider with ChangeNotifier {
       }
     }
 
+    // Load memory for the first project if any exist
+    if (_projects.isNotEmpty) {
+      _activeProjectId = _projects.first.id;
+      _loadMemoryForProject(_activeProjectId!);
+    }
+
     // Load settings
     await _loadSettings();
   }
@@ -339,6 +345,11 @@ class DayCrafterProvider with ChangeNotifier {
     // Use provided color or pick from palette
     final effectiveColor = colorHex ?? _getNextAvailableColor();
 
+    // Save current project's memory before creating a new project
+    if (_activeProjectId != null) {
+      _saveMemoryForProject(_activeProjectId!);
+    }
+
     final newProject = Project(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
@@ -350,6 +361,10 @@ class DayCrafterProvider with ChangeNotifier {
     );
     _projects.add(newProject);
     _activeProjectId = newProject.id;
+
+    // Clear memory for the new project (fresh start)
+    _shortTermMemory.clear();
+
     await _saveProjects();
     notifyListeners();
   }
@@ -722,6 +737,9 @@ class DayCrafterProvider with ChangeNotifier {
       memoryText,
       role == MessageRole.user ? 'user' : 'assistant',
     );
+
+    // Save memory for this project after each message
+    _saveMemoryForProject(_activeProjectId!);
 
     // Save to ObjectBox for semantic search (in background)
     _saveMessageToObjectBox(newMessage, _activeProjectId!);
