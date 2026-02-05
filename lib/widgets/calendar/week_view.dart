@@ -73,37 +73,77 @@ class WeekView extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Text(
-            '$monthYear  $dateRange',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppStyles.mTextPrimary,
-            ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: provider.navigatePrevious,
-            icon: const Icon(LucideIcons.chevronLeft),
-            color: AppStyles.mTextSecondary,
-          ),
-          IconButton(
-            onPressed: provider.navigateNext,
-            icon: const Icon(LucideIcons.chevronRight),
-            color: AppStyles.mTextSecondary,
-          ),
-          const Spacer(),
-          // View toggle buttons
-          _buildViewToggleCompact(context, provider),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: () => provider.setCalendarActive(false),
-            icon: const Icon(LucideIcons.x),
-            color: AppStyles.mTextSecondary,
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 600;
+          return isNarrow
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '$monthYear  $dateRange',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppStyles.mTextPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: provider.navigatePrevious,
+                        icon: const Icon(LucideIcons.chevronLeft),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                      IconButton(
+                        onPressed: provider.navigateNext,
+                        icon: const Icon(LucideIcons.chevronRight),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                      const SizedBox(width: 24),
+                      _buildViewToggleCompact(context, provider),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: () => provider.setCalendarActive(false),
+                        icon: const Icon(LucideIcons.x),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ],
+                  ),
+                )
+              : Row(
+                  children: [
+                    Text(
+                      '$monthYear  $dateRange',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyles.mTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: provider.navigatePrevious,
+                      icon: const Icon(LucideIcons.chevronLeft),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    IconButton(
+                      onPressed: provider.navigateNext,
+                      icon: const Icon(LucideIcons.chevronRight),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    const Spacer(),
+                    _buildViewToggleCompact(context, provider),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () => provider.setCalendarActive(false),
+                      icon: const Icon(LucideIcons.x),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                  ],
+                );
+        },
       ),
     );
   }
@@ -126,9 +166,9 @@ class WeekView extends StatelessWidget {
     DayCrafterProvider provider,
     List<DateTime> weekDays,
   ) {
-    // Time slots from 7 AM to 9 PM
-    final startHour = 7;
-    final endHour = 22; // 10 PM
+    // Time slots from 00:00 to 24:00
+    final startHour = 0;
+    final endHour = 24;
     final hoursCount = endHour - startHour;
     final hourHeight = 60.0;
     final totalHeight = hoursCount * hourHeight;

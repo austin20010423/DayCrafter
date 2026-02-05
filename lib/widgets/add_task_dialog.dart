@@ -147,6 +147,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     final provider = context.read<DayCrafterProvider>();
 
     final taskData = {
+      'uuid': widget.existingTask?['uuid'],
       'id':
           widget.existingTask?['id'] ??
           DateTime.now().millisecondsSinceEpoch.toString(),

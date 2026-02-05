@@ -70,37 +70,77 @@ class MonthView extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Text(
-            monthYear,
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: AppStyles.mTextPrimary,
-            ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: provider.navigatePrevious,
-            icon: const Icon(LucideIcons.chevronLeft),
-            color: AppStyles.mTextSecondary,
-          ),
-          IconButton(
-            onPressed: provider.navigateNext,
-            icon: const Icon(LucideIcons.chevronRight),
-            color: AppStyles.mTextSecondary,
-          ),
-          const Spacer(),
-          // View toggle buttons
-          _buildViewToggleCompact(context, provider),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: () => provider.setCalendarActive(false),
-            icon: const Icon(LucideIcons.x),
-            color: AppStyles.mTextSecondary,
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 600;
+          return isNarrow
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        monthYear,
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppStyles.mTextPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: provider.navigatePrevious,
+                        icon: const Icon(LucideIcons.chevronLeft),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                      IconButton(
+                        onPressed: provider.navigateNext,
+                        icon: const Icon(LucideIcons.chevronRight),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                      const SizedBox(width: 24),
+                      _buildViewToggleCompact(context, provider),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: () => provider.setCalendarActive(false),
+                        icon: const Icon(LucideIcons.x),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ],
+                  ),
+                )
+              : Row(
+                  children: [
+                    Text(
+                      monthYear,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyles.mTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: provider.navigatePrevious,
+                      icon: const Icon(LucideIcons.chevronLeft),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    IconButton(
+                      onPressed: provider.navigateNext,
+                      icon: const Icon(LucideIcons.chevronRight),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    const Spacer(),
+                    _buildViewToggleCompact(context, provider),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () => provider.setCalendarActive(false),
+                      icon: const Icon(LucideIcons.x),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                  ],
+                );
+        },
       ),
     );
   }

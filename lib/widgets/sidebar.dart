@@ -577,18 +577,7 @@ class _ProjectItemState extends State<_ProjectItem> {
                           : AppStyles.mTextSecondary,
                     ),
               const SizedBox(width: 12),
-              // Color dot
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: widget.isActive
-                      ? Colors.white
-                      : (widget.markColor ?? AppStyles.mTextSecondary),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
+
               Expanded(
                 child: Text(
                   widget.label,

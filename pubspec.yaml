@@ -63,6 +63,7 @@ dependencies:
   flutter_linkify: ^6.0.0
   mcp_dart: ^1.0.0
   openai_dart: any
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

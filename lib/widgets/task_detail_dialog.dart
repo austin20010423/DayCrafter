@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:provider/provider.dart';
-import '../provider.dart';
+
 import '../styles.dart';
 
 import 'add_task_dialog.dart';
@@ -358,27 +357,6 @@ class TaskDetailDialog extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // Toggle completion button
-                TextButton.icon(
-                  onPressed: () {
-                    final provider = context.read<DayCrafterProvider>();
-                    final taskId = task['id']?.toString();
-                    if (taskId != null) {
-                      provider.toggleTaskCompletion(taskId);
-                    }
-                    Navigator.of(context).pop();
-                  },
-                  icon: Icon(
-                    isCompleted ? LucideIcons.x : LucideIcons.check,
-                    size: 18,
-                  ),
-                  label: Text(isCompleted ? 'Incomplete' : 'Complete'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: isCompleted
-                        ? AppStyles.mTextSecondary
-                        : AppStyles.mAccent,
-                  ),
-                ),
                 const SizedBox(width: 8),
                 // Close button
                 ElevatedButton(

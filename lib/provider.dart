@@ -669,7 +669,8 @@ class DayCrafterProvider with ChangeNotifier {
     if (!db.isInitialized) return;
 
     try {
-      final taskId = taskData['id']?.toString() ?? taskData['uuid']?.toString();
+      // Fix: Prioritize UUID if available, as 'id' might be the originalTaskId grouping ID
+      final taskId = taskData['uuid']?.toString() ?? taskData['id']?.toString();
       if (taskId == null) return;
 
       final existing = db.getCalendarTaskByUuid(taskId);
@@ -1305,7 +1306,7 @@ Always provide sources when you search the web.''';
 
                   // Clear any text that was streamed (it's the tool arguments)
                   // and show a placeholder message
-                  aiText = '*Creating your tasks...*';
+                  aiText = '*Creating your tasks (about 1 minute)...*';
 
                   // Update UI immediately to hide the raw JSON
                   if (_activeProjectId != null) {
@@ -1590,13 +1591,26 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
 
       // Save for semantic search
       if (_activeProjectId != null) {
-        final finalMsg = Message(
-          id: assistantMessageId,
-          role: MessageRole.model,
-          text: aiText,
-          timestamp: DateTime.now(),
-        );
-        _saveMessageToObjectBox(finalMsg, _activeProjectId!);
+        // Retrieve the full message from the project to ensure we include any attached tasks
+        // that were added during the stream processing
+        Message? fullMessage;
+        try {
+          final project = _projects.firstWhere((p) => p.id == _activeProjectId);
+          fullMessage = project.messages.firstWhere(
+            (m) => m.id == assistantMessageId,
+            orElse: () => throw Exception('Message not found'),
+          );
+        } catch (_) {
+          // Fallback if not found (shouldn't happen)
+          fullMessage = Message(
+            id: assistantMessageId,
+            role: MessageRole.model,
+            text: aiText,
+            timestamp: DateTime.now(),
+          );
+        }
+
+        _saveMessageToObjectBox(fullMessage, _activeProjectId!);
       }
     } catch (e) {
       debugPrint('Responses API Error: $e');

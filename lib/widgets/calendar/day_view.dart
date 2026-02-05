@@ -85,46 +85,97 @@ class DayView extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Text(
-            monthYear,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppStyles.mTextPrimary,
-            ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: provider.navigatePrevious,
-            icon: const Icon(LucideIcons.chevronLeft),
-            color: AppStyles.mTextSecondary,
-          ),
-          IconButton(
-            onPressed: provider.navigateNext,
-            icon: const Icon(LucideIcons.chevronRight),
-            color: AppStyles.mTextSecondary,
-          ),
-          const Spacer(),
-          // Add task button
-          IconButton(
-            onPressed: () =>
-                AddTaskDialog.show(context, initialDate: provider.selectedDate),
-            icon: const Icon(LucideIcons.plus),
-            color: AppStyles.mPrimary,
-            tooltip: AppLocalizations.of(context)!.addTask,
-          ),
-          const SizedBox(width: 8),
-          // View toggle buttons
-          _buildViewToggleCompact(context, provider),
-          const SizedBox(width: 16),
-          IconButton(
-            onPressed: () => provider.setCalendarActive(false),
-            icon: const Icon(LucideIcons.x),
-            color: AppStyles.mTextSecondary,
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 600;
+          return isNarrow
+              ? SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        monthYear,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: AppStyles.mTextPrimary,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: provider.navigatePrevious,
+                        icon: const Icon(LucideIcons.chevronLeft),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                      IconButton(
+                        onPressed: provider.navigateNext,
+                        icon: const Icon(LucideIcons.chevronRight),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                      const SizedBox(width: 24),
+                      IconButton(
+                        onPressed: () => AddTaskDialog.show(
+                          context,
+                          initialDate: provider.selectedDate,
+                        ),
+                        icon: const Icon(LucideIcons.plus),
+                        color: AppStyles.mPrimary,
+                        tooltip: AppLocalizations.of(context)!.addTask,
+                      ),
+                      const SizedBox(width: 8),
+                      _buildViewToggleCompact(context, provider),
+                      const SizedBox(width: 16),
+                      IconButton(
+                        onPressed: () => provider.setCalendarActive(false),
+                        icon: const Icon(LucideIcons.x),
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ],
+                  ),
+                )
+              : Row(
+                  children: [
+                    Text(
+                      monthYear,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyles.mTextPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: provider.navigatePrevious,
+                      icon: const Icon(LucideIcons.chevronLeft),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    IconButton(
+                      onPressed: provider.navigateNext,
+                      icon: const Icon(LucideIcons.chevronRight),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => AddTaskDialog.show(
+                        context,
+                        initialDate: provider.selectedDate,
+                      ),
+                      icon: const Icon(LucideIcons.plus),
+                      color: AppStyles.mPrimary,
+                      tooltip: AppLocalizations.of(context)!.addTask,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildViewToggleCompact(context, provider),
+                    const SizedBox(width: 16),
+                    IconButton(
+                      onPressed: () => provider.setCalendarActive(false),
+                      icon: const Icon(LucideIcons.x),
+                      color: AppStyles.mTextSecondary,
+                    ),
+                  ],
+                );
+        },
       ),
     );
   }
@@ -318,9 +369,9 @@ class DayView extends StatelessWidget {
     final provider = context.watch<DayCrafterProvider>();
     final allTasks = provider.getTasksForDate(selectedDate);
 
-    // Time slots from 7 AM to 11 PM
-    final startHour = 7;
-    final endHour = 23;
+    // Time slots from 00:00 to 24:00
+    final startHour = 0;
+    final endHour = 24;
     final hoursCount = endHour - startHour;
     final hourHeight = 80.0; // Keep the tall slots
     final totalHeight = hoursCount * hourHeight;

@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:window_manager/window_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
@@ -21,6 +23,26 @@ import 'services/embedding_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize window manager for desktop
+  try {
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      await windowManager.ensureInitialized();
+
+      WindowOptions windowOptions = const WindowOptions(
+        minimumSize: Size(1100, 750),
+        center: true,
+        title: 'DayCrafter',
+      );
+
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        await windowManager.show();
+        await windowManager.focus();
+      });
+    }
+  } catch (e) {
+    debugPrint('Failed to initialize window manager: $e');
+  }
 
   // Load environment variables from .env file
   await dotenv.load(fileName: ".env");
