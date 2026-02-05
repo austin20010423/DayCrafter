@@ -1376,6 +1376,14 @@ Always provide sources when you search the web.''';
                       continue;
                     }
 
+                    // CHECK 1: Cancel before starting the tool
+                    if (_cancelledRequests.contains(requestId)) {
+                      debugPrint(
+                        'Request $requestId cancelled before MCP tool execution',
+                      );
+                      return;
+                    }
+
                     // Don't show the raw topic - just process silently
                     try {
                       final result = await _mcpClient!.callTool(
@@ -1384,6 +1392,14 @@ Always provide sources when you search the web.''';
                           arguments: {'topic': topic},
                         ),
                       );
+
+                      // CHECK 2: Cancel after tool execution (before processing results)
+                      if (_cancelledRequests.contains(requestId)) {
+                        debugPrint(
+                          'Request $requestId cancelled after MCP tool execution',
+                        );
+                        return;
+                      }
 
                       // Process result
                       final content = result.content;
@@ -1647,6 +1663,35 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     if (_currentRequestId != null) {
       _cancelledRequests.add(_currentRequestId!);
       _isLoading = false;
+
+      // If the last message is an empty/loading assistant message, update it to say "Cancelled"
+      if (_activeProjectId != null) {
+        final projectIndex = _projects.indexWhere(
+          (p) => p.id == _activeProjectId,
+        );
+        if (projectIndex != -1) {
+          final project = _projects[projectIndex];
+          if (project.messages.isNotEmpty) {
+            final lastMsg = project.messages.last;
+            if (lastMsg.role == MessageRole.model &&
+                (lastMsg.text.isEmpty ||
+                    lastMsg.text ==
+                        '*Creating your tasks (about 1 minute)...*')) {
+              // Create updated message list
+              final updatedMessages = List<Message>.from(project.messages);
+              updatedMessages[updatedMessages.length - 1] = lastMsg.copyWith(
+                text: '*Request cancelled*',
+              );
+
+              // Update project
+              _projects[projectIndex] = project.copyWith(
+                messages: updatedMessages,
+              );
+            }
+          }
+        }
+      }
+
       notifyListeners();
     }
   }
