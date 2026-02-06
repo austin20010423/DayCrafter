@@ -1153,6 +1153,42 @@ Always provide sources when you search the web.''';
           {'type': 'web_search', 'search_context_size': 'medium'},
           {
             'type': 'function',
+            'name': 'add_calendar_task',
+            'description':
+                'Directly add a task to the calendar. Use this when the user request is specific about WHAT, WHEN, and TIME. e.g. "Add meeting tomorrow at 2pm"',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'title': {
+                  'type': 'string',
+                  'description': 'The title of the task',
+                },
+                'description': {
+                  'type': 'string',
+                  'description': 'Description or details of the task',
+                },
+                'start_date_time': {
+                  'type': 'string',
+                  'description':
+                      'The start date and time in ISO 8601 format (e.g. 2024-02-05T14:00:00)',
+                },
+                'end_date_time': {
+                  'type': 'string',
+                  'description':
+                      'The end date and time in ISO 8601 format. If not provided, defaults to 1 hour duration.',
+                },
+                'priority': {
+                  'type': 'integer',
+                  'description':
+                      'Priority level: 1 (High), 2 (Medium), 3 (Low). Default is 3.',
+                  'enum': [1, 2, 3],
+                },
+              },
+              'required': ['title', 'start_date_time'],
+            },
+          },
+          {
+            'type': 'function',
             'name': 'task_and_schedule_planer',
             'description':
                 'Plan and schedule tasks for the user. Use when user wants to create, organize, plan, or schedule tasks.',
@@ -1352,7 +1388,72 @@ Always provide sources when you search the web.''';
                 final name = fcMeta?['name'] as String?;
                 final callId = fcMeta?['call_id'] as String?;
 
-                if (name == 'task_and_schedule_planer' &&
+                if (name == 'add_calendar_task' &&
+                    arguments != null &&
+                    callId != null) {
+                  try {
+                    final args = jsonDecode(arguments);
+                    final String title = args['title'] ?? 'Untitled';
+                    final String? description = args['description'];
+                    final String startDateTimeStr = args['start_date_time'];
+                    final String? endDateTimeStr = args['end_date_time'];
+                    final int priority = args['priority'] ?? 3;
+
+                    // Parse dates
+                    final DateTime start = DateTime.parse(startDateTimeStr);
+                    final DateTime end = endDateTimeStr != null
+                        ? DateTime.parse(endDateTimeStr)
+                        : start.add(const Duration(hours: 1));
+
+                    final String dateOnCalendar =
+                        "${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}";
+                    final String startTime =
+                        "${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}";
+                    final String endTime =
+                        "${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}";
+
+                    // Execute adding task
+                    addManualTask({
+                      'task': title,
+                      'Description': description,
+                      'dateOnCalendar': dateOnCalendar,
+                      'start_time': startTime,
+                      'end_time': endTime,
+                      'priority': priority,
+                      'isManuallyScheduled': true,
+                    });
+
+                    // Update UI response
+                    aiText =
+                        "✅ **Added Task:** $title\n📅 $dateOnCalendar at $startTime - $endTime";
+
+                    // Update message in project
+                    if (_activeProjectId != null) {
+                      final projectIndex = _projects.indexWhere(
+                        (p) => p.id == _activeProjectId,
+                      );
+                      if (projectIndex != -1) {
+                        final currentMessages = List<Message>.from(
+                          _projects[projectIndex].messages,
+                        );
+                        final msgIndex = currentMessages.indexWhere(
+                          (m) => m.id == assistantMessageId,
+                        );
+                        if (msgIndex != -1) {
+                          currentMessages[msgIndex] = currentMessages[msgIndex]
+                              .copyWith(text: aiText);
+                          _projects[projectIndex] = _projects[projectIndex]
+                              .copyWith(messages: currentMessages);
+                        }
+                      }
+                    }
+                    notifyListeners();
+                  } catch (e) {
+                    debugPrint('Error executing add_calendar_task: $e');
+                    aiText += "\n\n❌ Error adding task: $e";
+                    notifyListeners();
+                  }
+                } else if (name == 'task_and_schedule_planer' &&
                     arguments != null &&
                     callId != null) {
                   String? topic;
