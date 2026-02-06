@@ -15,6 +15,7 @@ import 'services/embedding_service.dart';
 import 'services/task_scheduler.dart';
 import 'services/local_auth_service.dart';
 import 'services/short_term_memory.dart';
+import 'config/tools_config.dart';
 
 // ============================================================================
 /// Calendar view types
@@ -1149,61 +1150,7 @@ Always provide sources when you search the web.''';
         'model': 'gpt-5-nano',
         'instructions': instructions,
         'input': items,
-        'tools': [
-          {'type': 'web_search', 'search_context_size': 'medium'},
-          {
-            'type': 'function',
-            'name': 'add_calendar_task',
-            'description':
-                'Directly add a task to the calendar. Use this when the user request is specific about WHAT, WHEN, and TIME. e.g. "Add meeting tomorrow at 2pm"',
-            'parameters': {
-              'type': 'object',
-              'properties': {
-                'title': {
-                  'type': 'string',
-                  'description': 'The title of the task',
-                },
-                'description': {
-                  'type': 'string',
-                  'description': 'Description or details of the task',
-                },
-                'start_date_time': {
-                  'type': 'string',
-                  'description':
-                      'The start date and time in ISO 8601 format (e.g. 2024-02-05T14:00:00)',
-                },
-                'end_date_time': {
-                  'type': 'string',
-                  'description':
-                      'The end date and time in ISO 8601 format. If not provided, defaults to 1 hour duration.',
-                },
-                'priority': {
-                  'type': 'integer',
-                  'description':
-                      'Priority level: 1 (High), 2 (Medium), 3 (Low). Default is 3.',
-                  'enum': [1, 2, 3],
-                },
-              },
-              'required': ['title', 'start_date_time'],
-            },
-          },
-          {
-            'type': 'function',
-            'name': 'task_and_schedule_planer',
-            'description':
-                'Plan and schedule tasks for the user. Use when user wants to create, organize, plan, or schedule tasks.',
-            'parameters': {
-              'type': 'object',
-              'properties': {
-                'topic': {
-                  'type': 'string',
-                  'description': 'The task description or query from the user',
-                },
-              },
-              'required': ['topic'],
-            },
-          },
-        ],
+        'tools': aiTools,
         'tool_choice': 'auto',
         'reasoning': {'effort': 'low'},
         'stream': true,
@@ -1342,7 +1289,7 @@ Always provide sources when you search the web.''';
 
                   // Clear any text that was streamed (it's the tool arguments)
                   // and show a placeholder message
-                  aiText = '*Creating your tasks (about 1 minute)...*';
+                  aiText = '*Creating your tasks...*';
 
                   // Update UI immediately to hide the raw JSON
                   if (_activeProjectId != null) {
@@ -2152,6 +2099,11 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     // Update project
     _projects[projectIndex] = project.copyWith(messages: updatedMessages);
     await _saveProjects();
+
+    // Re-generate embedding for the updated message
+    // This ensures semantic search can find this task based on new edits
+    await _saveMessageToObjectBox(updatedMessage, _activeProjectId!);
+
     notifyListeners();
   }
 
@@ -2449,7 +2401,29 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       List<double>? embedding;
       if (embeddingService.isReady) {
         try {
-          embedding = await embeddingService.generateEmbedding(message.text);
+          // Construct text to embed: Message text + Task details
+          final buffer = StringBuffer(message.text);
+
+          if (message.tasks != null && message.tasks!.isNotEmpty) {
+            buffer.writeln('\nTasks:');
+            for (final task in message.tasks!) {
+              buffer.writeln('- ${task['task'] ?? 'Untitled'}');
+              if (task['Description'] != null &&
+                  task['Description'].toString().isNotEmpty) {
+                buffer.writeln('  Details: ${task['Description']}');
+              }
+              if (task['DueDate'] != null) {
+                buffer.writeln('  Due: ${task['DueDate']}');
+              }
+              if (task['priority'] != null) {
+                buffer.writeln('  Priority: ${task['priority']}');
+              }
+            }
+          }
+
+          embedding = await embeddingService.generateEmbedding(
+            buffer.toString(),
+          );
         } catch (e) {
           debugPrint('Failed to generate embedding: $e');
         }
