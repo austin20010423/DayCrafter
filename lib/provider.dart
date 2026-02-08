@@ -338,7 +338,7 @@ class DayCrafterProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addProject(
+  Future<String> addProject(
     String name, {
     String? colorHex,
     String? emoji,
@@ -368,6 +368,7 @@ class DayCrafterProvider with ChangeNotifier {
 
     await _saveProjects();
     notifyListeners();
+    return newProject.id;
   }
 
   void setActiveProject(String? id) {
@@ -652,7 +653,7 @@ class DayCrafterProvider with ChangeNotifier {
         endTime: taskData['end_time']?.toString(),
         priority: taskData['priority'] is int ? taskData['priority'] : 3,
         isManuallyScheduled: taskData['isManuallyScheduled'] == true,
-        projectId: _activeProjectId,
+        projectId: taskData['projectId']?.toString() ?? _activeProjectId,
         createdAt: DateTime.now(),
         userEmail: _currentUserEmail,
       );
@@ -689,6 +690,8 @@ class DayCrafterProvider with ChangeNotifier {
           ? taskData['priority']
           : existing.priority;
       existing.isManuallyScheduled = taskData['isManuallyScheduled'] == true;
+      existing.projectId =
+          taskData['projectId']?.toString() ?? existing.projectId;
       existing.userEmail = _currentUserEmail;
 
       db.saveCalendarTasks([existing]);

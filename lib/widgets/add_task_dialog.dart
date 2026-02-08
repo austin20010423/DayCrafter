@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../provider.dart';
 import '../styles.dart';
 import '../l10n/app_localizations.dart';
+import '../models.dart';
 
 /// Dialog for adding or editing a task manually
 class AddTaskDialog extends StatefulWidget {
@@ -43,7 +44,10 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   int _priority = 3;
+
   bool _isManuallyScheduled = true;
+  String? _selectedProjectId;
+  bool _isInit = true;
 
   bool get isEditing => widget.existingTask != null;
 
@@ -59,9 +63,22 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       _startTime = _parseTime(task['start_time']?.toString());
       _endTime = _parseTime(task['end_time']?.toString());
       _priority = task['priority'] is int ? task['priority'] : 3;
+
       _isManuallyScheduled = task['isManuallyScheduled'] == true;
+      _selectedProjectId = task['projectId']?.toString();
     } else {
       _selectedDate = widget.initialDate ?? DateTime.now();
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isInit) {
+      if (!isEditing) {
+        _selectedProjectId = context.read<DayCrafterProvider>().activeProjectId;
+      }
+      _isInit = false;
     }
   }
 
@@ -146,6 +163,16 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
     final provider = context.read<DayCrafterProvider>();
 
+    if (provider.projects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please create a project to continue.'),
+          backgroundColor: AppStyles.priorityHigh,
+        ),
+      );
+      return;
+    }
+
     final taskData = {
       'uuid': widget.existingTask?['uuid'],
       'id':
@@ -157,7 +184,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
       'start_time': _startTime != null ? _formatTime(_startTime!) : null,
       'end_time': _endTime != null ? _formatTime(_endTime!) : null,
       'priority': _priority,
+
       'isManuallyScheduled': _isManuallyScheduled,
+      'projectId': _selectedProjectId,
     };
 
     if (isEditing) {
@@ -211,6 +240,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                           _buildDateSelector(),
                           const SizedBox(height: 16),
                           _buildTimeSelectors(),
+
+                          const SizedBox(height: 20),
+                          _buildProjectSelector(),
                           const SizedBox(height: 20),
                           _buildPrioritySelector(),
                         ],
@@ -535,5 +567,237 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         ],
       ),
     );
+  }
+
+  Widget _buildProjectSelector() {
+    final provider = context.watch<DayCrafterProvider>();
+    final projects = provider.projects;
+    final selectedProject = projects.firstWhere(
+      (p) => p.id == _selectedProjectId,
+      orElse: () =>
+          projects.isNotEmpty ? projects.first : _createDefaultProject(),
+    );
+
+    // If projects are empty (shouldn't happen usually if logged in), handle safely
+    // if (projects.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Project', // TODO: Add to l10n
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppStyles.mTextSecondary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        InkWell(
+          onTap: () => _showProjectSelectionDialog(projects),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: AppStyles.mTextSecondary.withValues(alpha: 0.3),
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: _parseColor(selectedProject.colorHex),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  selectedProject.name,
+                  style: TextStyle(fontSize: 15, color: AppStyles.mTextPrimary),
+                ),
+                const Spacer(),
+                Icon(
+                  LucideIcons.chevronDown,
+                  color: AppStyles.mTextSecondary,
+                  size: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Project _createDefaultProject() {
+    return Project(
+      id: 'default',
+      name: 'Create Project Required',
+      description: '',
+      createdAt: '',
+      colorHex: '#FF5252', // Red to warn user
+      messages: [],
+    );
+  }
+
+  Color _parseColor(String? hex) {
+    if (hex == null || hex.isEmpty) return Colors.grey;
+    try {
+      return Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000);
+    } catch (_) {
+      return Colors.grey;
+    }
+  }
+
+  void _showProjectSelectionDialog(List<Project> projects) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppStyles.mSurface,
+        title: Text(
+          'Select Project',
+          style: TextStyle(color: AppStyles.mTextPrimary),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: projects.length + 1, // Add +1 for "Create New Project"
+            itemBuilder: (context, index) {
+              if (index == projects.length) {
+                // "Create New Project" option
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppStyles.mPrimary.withValues(alpha: 0.15),
+                    radius: 14,
+                    child: Icon(
+                      LucideIcons.plus,
+                      size: 16,
+                      color: AppStyles.mPrimary,
+                    ),
+                  ),
+                  title: Text(
+                    'Create New Project',
+                    style: TextStyle(
+                      color: AppStyles.mPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showCreateProjectDialog();
+                  },
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                );
+              }
+
+              final project = projects[index];
+              final isSelected = project.id == _selectedProjectId;
+              return ListTile(
+                leading: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: _parseColor(project.colorHex),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                title: Text(
+                  project.name,
+                  style: TextStyle(
+                    color: isSelected
+                        ? AppStyles.mPrimary
+                        : AppStyles.mTextPrimary,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(
+                        LucideIcons.check,
+                        color: AppStyles.mPrimary,
+                        size: 18,
+                      )
+                    : null,
+                onTap: () {
+                  setState(() => _selectedProjectId = project.id);
+                  Navigator.pop(ctx);
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCreateProjectDialog() {
+    final nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppStyles.mSurface,
+        title: Text(
+          'New Project',
+          style: TextStyle(color: AppStyles.mTextPrimary),
+        ),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: 'Project Name',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppStyles.mPrimary),
+            ),
+          ),
+          onSubmitted: (_) => _createProject(ctx, nameController.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => _createProject(ctx, nameController.text),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppStyles.mPrimary,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _createProject(BuildContext ctx, String name) async {
+    if (name.trim().isEmpty) return;
+
+    final provider = context.read<DayCrafterProvider>();
+    final newProjectId = await provider.addProject(name.trim());
+
+    // Close the dialog
+    if (ctx.mounted) {
+      Navigator.pop(ctx);
+    }
+
+    // Select the new project
+    if (mounted) {
+      setState(() {
+        _selectedProjectId = newProjectId;
+      });
+    }
   }
 }

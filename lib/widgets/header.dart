@@ -5,6 +5,7 @@ import '../provider.dart';
 import '../styles.dart';
 import '../l10n/app_localizations.dart';
 import 'search_overlay.dart';
+import 'notification_overlay.dart';
 
 class Header extends StatelessWidget {
   final String? activeProjectName;
@@ -63,7 +64,9 @@ class Header extends StatelessWidget {
                 onPressed: () => _openSearch(context),
                 tooltip: l10n.searchShortcut,
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 12),
+              const NotificationButton(),
+              const SizedBox(width: 12),
               _HeaderIconButton(
                 icon: LucideIcons.settings,
                 onPressed: () => _openSettings(context),
