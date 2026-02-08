@@ -17,6 +17,7 @@ class Header extends StatelessWidget {
   }
 
   void _openSettings(BuildContext context) {
+    context.read<DayCrafterProvider>().closeAllOverlays();
     context.read<DayCrafterProvider>().setActiveNavItem(NavItem.settings);
   }
 

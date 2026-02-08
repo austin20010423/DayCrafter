@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../provider.dart';
@@ -594,7 +595,13 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         ),
         const SizedBox(height: 10),
         InkWell(
-          onTap: () => _showProjectSelectionDialog(projects),
+          onTap: () {
+            if (projects.isEmpty) {
+              _showCreateProjectDialog();
+            } else {
+              _showProjectSelectionDialog(projects);
+            }
+          },
           borderRadius: BorderRadius.circular(10),
           child: Container(
             padding: const EdgeInsets.all(14),
@@ -636,7 +643,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   Project _createDefaultProject() {
     return Project(
       id: 'default',
-      name: 'Create Project Required',
+      name: 'Tap to Create Project',
       description: '',
       createdAt: '',
       colorHex: '#FF5252', // Red to warn user
@@ -743,61 +750,148 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
   void _showCreateProjectDialog() {
     final nameController = TextEditingController();
+    // Default color (Blue-Grey)
+    Color selectedColor = const Color(0xFF7A8D9A);
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppStyles.mSurface,
-        title: Text(
-          'New Project',
-          style: TextStyle(color: AppStyles.mTextPrimary),
-        ),
-        content: TextField(
-          controller: nameController,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Project Name',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide(color: AppStyles.mPrimary),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: AppStyles.mSurface,
+            title: Text(
+              'New Project',
+              style: TextStyle(color: AppStyles.mTextPrimary),
             ),
-          ),
-          onSubmitted: (_) => _createProject(ctx, nameController.text),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => _createProject(ctx, nameController.text),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppStyles.mPrimary,
-              foregroundColor: Colors.white,
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    autofocus: true,
+                    style: TextStyle(color: AppStyles.mTextPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Project Name',
+                      hintStyle: TextStyle(color: AppStyles.mTextSecondary),
+                      filled: true,
+                      fillColor: AppStyles.mBackground,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(color: AppStyles.mPrimary),
+                      ),
+                    ),
+                    onSubmitted: (_) => _createProject(
+                      ctx,
+                      nameController.text,
+                      '#${selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Color',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppStyles.mTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Center(
+                    child: SizedBox(
+                      width: 350,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: ColorPicker(
+                          pickerColor: selectedColor,
+                          onColorChanged: (color) {
+                            setState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          labelTypes: const [],
+                          enableAlpha: false,
+                          displayThumbColor: true,
+                          pickerAreaHeightPercent: 0.7,
+                          paletteType: PaletteType.hueWheel,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Text('Create'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: AppStyles.mTextSecondary),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => _createProject(
+                  ctx,
+                  nameController.text,
+                  '#${selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppStyles.mPrimary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text('Create'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  void _createProject(BuildContext ctx, String name) async {
+  Future<void> _createProject(
+    BuildContext ctx,
+    String name,
+    String colorHex,
+  ) async {
     if (name.trim().isEmpty) return;
 
-    final provider = context.read<DayCrafterProvider>();
-    final newProjectId = await provider.addProject(name.trim());
+    try {
+      final provider = context.read<DayCrafterProvider>();
+      final newProjectId = await provider.addProject(name, colorHex: colorHex);
 
-    // Close the dialog
-    if (ctx.mounted) {
-      Navigator.pop(ctx);
-    }
+      if (ctx.mounted) {
+        Navigator.pop(ctx); // Close creation dialog
+      }
 
-    // Select the new project
-    if (mounted) {
-      setState(() {
-        _selectedProjectId = newProjectId;
-      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Project "$name" created'),
+            backgroundColor: AppStyles.mSecondary,
+          ),
+        );
+
+        setState(() {
+          _selectedProjectId = newProjectId;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create project'),
+            backgroundColor: AppStyles.priorityHigh,
+          ),
+        );
+      }
     }
   }
 }

@@ -14,6 +14,7 @@ class SearchOverlay extends StatefulWidget {
 
   /// Shows the search overlay as a modal
   static Future<void> show(BuildContext context) {
+    context.read<DayCrafterProvider>().closeAllOverlays();
     return showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.4),

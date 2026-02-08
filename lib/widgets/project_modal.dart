@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../styles.dart';
 import '../l10n/app_localizations.dart';
 
@@ -27,22 +28,7 @@ class ProjectModal extends StatefulWidget {
 
 class _ProjectModalState extends State<ProjectModal> {
   final _controller = TextEditingController();
-
-  // Predefined color palette (Morandi style)
-  static const List<Color> _colors = [
-    Color(0xFF7A8D9A), // Muted Blue
-    Color(0xFFACB8A8), // Sage Green
-    Color(0xFFD6BDBC), // Dusty Rose
-    Color(0xFFE8B4B8), // Soft Pink
-    Color(0xFFA8C5C5), // Teal
-    Color(0xFFCFB997), // Sandy Gold
-    Color(0xFFB8A9C9), // Lavender
-    Color(0xFF9DB5B2), // Seafoam
-    Color(0xFFD4A5A5), // Coral
-    Color(0xFF8FA3BF), // Periwinkle
-  ];
-
-  int _selectedColorIndex = 0;
+  Color _selectedColor = const Color(0xFF7A8D9A); // Default Morandi Blue
   String _selectedEmoji = '📁'; // Default emoji
   bool _showEmojiPicker = false;
 
@@ -159,7 +145,7 @@ class _ProjectModalState extends State<ProjectModal> {
                     child: ElevatedButton(
                       onPressed: _submit,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _colors[_selectedColorIndex],
+                        backgroundColor: _selectedColor,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -192,20 +178,18 @@ class _ProjectModalState extends State<ProjectModal> {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            color: _colors[_selectedColorIndex].withValues(alpha: 0.25),
+            color: _selectedColor.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: _showEmojiPicker
-                  ? _colors[_selectedColorIndex]
-                  : _colors[_selectedColorIndex].withValues(alpha: 0.5),
+                  ? _selectedColor
+                  : _selectedColor.withValues(alpha: 0.5),
               width: 2,
             ),
             boxShadow: _showEmojiPicker
                 ? [
                     BoxShadow(
-                      color: _colors[_selectedColorIndex].withValues(
-                        alpha: 0.3,
-                      ),
+                      color: _selectedColor.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
@@ -255,42 +239,26 @@ class _ProjectModalState extends State<ProjectModal> {
   }
 
   Widget _buildColorPicker() {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: List.generate(_colors.length, (index) {
-        final isSelected = index == _selectedColorIndex;
-        return MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () => setState(() => _selectedColorIndex = index),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: _colors[index],
-                borderRadius: BorderRadius.circular(10),
-                border: isSelected
-                    ? Border.all(color: Colors.white, width: 3)
-                    : null,
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: _colors[index].withValues(alpha: 0.5),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: isSelected
-                  ? const Icon(Icons.check, color: Colors.white, size: 18)
-                  : null,
-            ),
+    return Center(
+      child: SizedBox(
+        width: 350,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: ColorPicker(
+            pickerColor: _selectedColor,
+            onColorChanged: (color) {
+              setState(() {
+                _selectedColor = color;
+              });
+            },
+            labelTypes: const [],
+            enableAlpha: false,
+            displayThumbColor: true,
+            pickerAreaHeightPercent: 0.7,
+            paletteType: PaletteType.hueWheel,
           ),
-        );
-      }),
+        ),
+      ),
     );
   }
 
@@ -329,9 +297,9 @@ class _ProjectModalState extends State<ProjectModal> {
             categoryViewConfig: CategoryViewConfig(
               initCategory: Category.OBJECTS,
               backgroundColor: Colors.transparent,
-              indicatorColor: _colors[_selectedColorIndex],
+              indicatorColor: _selectedColor,
               iconColor: AppStyles.mTextSecondary,
-              iconColorSelected: _colors[_selectedColorIndex],
+              iconColorSelected: _selectedColor,
               categoryIcons: const CategoryIcons(
                 recentIcon: Icons.access_time,
                 smileyIcon: Icons.emoji_emotions_outlined,
@@ -357,7 +325,7 @@ class _ProjectModalState extends State<ProjectModal> {
 
   void _submit() {
     if (_controller.text.trim().isNotEmpty) {
-      final colorInt = _colors[_selectedColorIndex].toARGB32();
+      final colorInt = _selectedColor.toARGB32();
       widget.onSubmit(
         ProjectCreationData(
           name: _controller.text.trim(),

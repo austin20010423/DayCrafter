@@ -60,6 +60,15 @@ class DayCrafterProvider with ChangeNotifier {
   CalendarViewType _currentCalendarView = CalendarViewType.day;
   DateTime _selectedDate = DateTime.now();
 
+  // Overlay coordination
+  int _overlayCloseSignal = 0;
+  int get overlayCloseSignal => _overlayCloseSignal;
+
+  void closeAllOverlays() {
+    _overlayCloseSignal++;
+    notifyListeners();
+  }
+
   // Theme and localization state
   AppThemeMode _themeMode = AppThemeMode.light;
   AppLocale _locale = AppLocale.english;

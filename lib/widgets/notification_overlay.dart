@@ -20,6 +20,19 @@ class _NotificationButtonState extends State<NotificationButton> {
 
   // Track the number of tasks we've "seen" (opened the panel for)
   int _lastSeenCount = 0;
+  int _lastCloseSignal = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final provider = context.watch<DayCrafterProvider>();
+    if (provider.overlayCloseSignal != _lastCloseSignal) {
+      _lastCloseSignal = provider.overlayCloseSignal;
+      if (_isOpen) {
+        _removeOverlay();
+      }
+    }
+  }
 
   @override
   void dispose() {

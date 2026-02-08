@@ -65,6 +65,7 @@ dependencies:
   openai_dart: any
   window_manager: ^0.5.1
   timeago: ^3.7.1
+  flutter_colorpicker: ^1.1.0
 
 dev_dependencies:
   flutter_test:
