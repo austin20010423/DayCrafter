@@ -188,6 +188,62 @@ class DayCrafterProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isRecording = false;
+  bool get isRecording => _isRecording;
+
+  void setRecording(bool value) {
+    _isRecording = value;
+    notifyListeners();
+  }
+
+  Future<void> sendAudioMessage(String filePath) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final apiKey = dotenv.env['OPENAI_API_KEY'];
+      if (apiKey == null) {
+        throw Exception('OpenAI API Key not found');
+      }
+
+      final uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $apiKey'
+        ..fields['model'] = 'whisper-1'
+        ..files.add(await http.MultipartFile.fromPath('file', filePath));
+
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final respStr = await response.stream.bytesToString();
+        final data = jsonDecode(respStr);
+        final transcript = data['text'] as String;
+
+        // Send transcribed text as a message
+        await sendMessage(
+          transcript,
+          MessageRole.user,
+          attachments: [
+            {'type': 'audio', 'path': filePath},
+          ],
+        );
+      } else {
+        throw Exception('Transcription failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error sending audio message: $e');
+      // Show error message in chat if transcription fails
+      if (_activeProjectId != null) {
+        await sendMessage(
+          "I couldn't transcribe the audio. Error: $e",
+          MessageRole.model,
+        );
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   /// Get the next available color from the palette
   String _getNextAvailableColor() {
     final usedColors = _projects

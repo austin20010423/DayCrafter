@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as Math;
+import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -9,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models.dart';
 import '../provider.dart';
 import '../styles.dart';
+import '../services/audio_service.dart';
 
 class ChatView extends StatefulWidget {
   const ChatView({super.key});
@@ -28,6 +31,7 @@ class _ChatViewState extends State<ChatView> {
   String? _attachedFileType; // 'text' | 'voice' | 'recording'
   int _timerSeconds = 0;
   Timer? _timer;
+  bool _isInputHovered = false;
 
   // Sidebar state
   bool _isSidebarOpen = false;
@@ -59,23 +63,43 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
-  void _startRecording() {
+  void _startRecording() async {
+    final provider = context.read<DayCrafterProvider>();
+    final hasPermission = await AudioService.instance.hasPermission();
+
+    if (!hasPermission) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission is required')),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _viewMode = ViewMode.recording;
       _timerSeconds = 0;
     });
+
+    provider.setRecording(true);
+    await AudioService.instance.startRecording();
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() => _timerSeconds++);
     });
   }
 
-  void _stopRecording(bool save) {
+  void _stopRecording(bool save) async {
     _timer?.cancel();
+    final provider = context.read<DayCrafterProvider>();
+    provider.setRecording(false);
+
+    final path = await AudioService.instance.stopRecording();
+
     setState(() {
-      if (save) {
-        _attachedFile = "Audio Recording.wav";
-        _attachedFileType = 'recording';
-        _attachedFilePath = null;
+      if (save && path != null) {
+        // Automatically send audio message if saved
+        provider.sendAudioMessage(path);
       }
       _viewMode = ViewMode.defaultMode;
     });
@@ -590,30 +614,37 @@ class _ChatViewState extends State<ChatView> {
         project.messages.last.role == MessageRole.model;
     final showLoadingBubble = isLoading && !isStreamingAiMessage;
 
-    return Column(
+    return Stack(
       children: [
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
-            itemCount: project.messages.length + (showLoadingBubble ? 1 : 0),
-            itemBuilder: (context, index) {
-              if (index == project.messages.length) {
-                return _buildLoadingBubble();
-              }
-              final msg = project.messages[index];
-              return _buildMessageBubble(
-                msg,
-                isStreaming:
-                    isLoading &&
-                    index == project.messages.length - 1 &&
-                    msg.role == MessageRole.model,
-              );
-            },
-          ),
+        Column(
+          children: [
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(48, 40, 48, 180),
+                itemCount:
+                    project.messages.length + (showLoadingBubble ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == project.messages.length) {
+                    return _buildLoadingBubble();
+                  }
+                  final msg = project.messages[index];
+                  return _buildMessageBubble(
+                    msg,
+                    isStreaming:
+                        isLoading &&
+                        index == project.messages.length - 1 &&
+                        msg.role == MessageRole.model,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(32, 0, 32, 32),
+        Positioned(
+          left: 32,
+          right: 32,
+          bottom: 32,
           child: _buildInputBox(false),
         ),
       ],
@@ -909,82 +940,104 @@ class _ChatViewState extends State<ChatView> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _sidebarTasks = tasks;
-                    _sidebarMessageId = messageId;
-                    _isSidebarOpen = true;
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+              _HoverableContainer(
+                onTap: () => setState(() {
+                  _isSidebarOpen = true;
+                  _sidebarTasks = tasks;
+                  _sidebarMessageId = messageId;
+                }),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppStyles.mPrimary.withValues(alpha: 0.1),
+                  borderRadius: AppStyles.bRadiusMedium,
+                  border: Border.all(
+                    color: AppStyles.mPrimary.withValues(alpha: 0.3),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppStyles.mPrimary.withValues(alpha: 0.1),
-                    borderRadius: AppStyles.bRadiusMedium,
-                    border: Border.all(
-                      color: AppStyles.mPrimary.withValues(alpha: 0.3),
+                ),
+                hoverDecoration: BoxDecoration(
+                  color: AppStyles.mPrimary.withValues(alpha: 0.2),
+                  borderRadius: AppStyles.bRadiusMedium,
+                  border: Border.all(
+                    color: AppStyles.mPrimary.withValues(alpha: 0.6),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppStyles.mPrimary.withValues(alpha: 0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        LucideIcons.edit3,
-                        size: 16,
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.edit3,
+                      size: 16,
+                      color: AppStyles.mPrimary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Click here to edit',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: AppStyles.mPrimary,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Click here to edit',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppStyles.mPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
               // Done button to submit tasks to calendar
-              GestureDetector(
+              _HoverableContainer(
                 onTap: () => _submitTasksToCalendar(tasks, messageId),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppStyles.mAccent.withValues(alpha: 0.15),
+                  borderRadius: AppStyles.bRadiusMedium,
+                  border: Border.all(
+                    color: AppStyles.mAccent.withValues(alpha: 0.4),
                   ),
-                  decoration: BoxDecoration(
-                    color: AppStyles.mAccent.withValues(alpha: 0.15),
-                    borderRadius: AppStyles.bRadiusMedium,
-                    border: Border.all(
-                      color: AppStyles.mAccent.withValues(alpha: 0.4),
+                ),
+                hoverDecoration: BoxDecoration(
+                  color: AppStyles.mAccent.withValues(alpha: 0.25),
+                  borderRadius: AppStyles.bRadiusMedium,
+                  border: Border.all(
+                    color: AppStyles.mAccent.withValues(alpha: 0.7),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppStyles.mAccent.withValues(alpha: 0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        LucideIcons.checkCircle,
-                        size: 16,
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      LucideIcons.checkCircle,
+                      size: 16,
+                      color: AppStyles.mAccent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Done',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                         color: AppStyles.mAccent,
                       ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Done',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppStyles.mAccent,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1275,111 +1328,232 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Widget _buildInputBox(bool isInitial) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppStyles.mSurface,
-        borderRadius: AppStyles.bRadiusLarge,
-        border: Border.all(color: AppStyles.mBackground, width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 50,
-            offset: const Offset(0, 15),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isInputHovered = true),
+      onExit: (_) => setState(() => _isInputHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppStyles.mSurface,
+          borderRadius: AppStyles.bRadiusLarge,
+          border: Border.all(
+            color: _isInputHovered
+                ? AppStyles.mPrimary.withValues(alpha: 0.8)
+                : AppStyles.mPrimary.withValues(alpha: 0.25),
+            width: 2,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // File chip area (Gemini style) - appears above input
-          if (_attachedFile != null)
-            _GeminiFileChip(
-              fileName: _attachedFile!,
-              fileType: _attachedFileType ?? 'text',
-              onRemove: () => setState(() {
-                _attachedFile = null;
-                _attachedFilePath = null;
-                _attachedFileType = null;
-              }),
-            ),
-          TextField(
-            controller: _inputController,
-            maxLines: isInitial ? 3 : 6, // Increased for more visible text
-            minLines: 3, // Always show at least 3 lines
-            style: TextStyle(fontSize: 16, color: AppStyles.mTextPrimary),
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => _handleSubmit(),
-            onChanged: (_) =>
-                setState(() {}), // Update button state on text change
-            decoration: InputDecoration(
-              hintText: 'Type a meeting note...',
-              hintStyle: TextStyle(
-                color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(
+                alpha: _isInputHovered ? 0.22 : 0.15,
               ),
-              border: InputBorder.none,
+              blurRadius: _isInputHovered ? 60 : 40,
+              offset: Offset(0, _isInputHovered ? 25 : 15),
             ),
-          ),
-          const SizedBox(height: 12), // Reduced spacing
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
+          ],
+        ),
+        child: _viewMode == ViewMode.recording
+            ? _buildRecordingControls()
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _InputActionButton(
-                    icon: LucideIcons.paperclip,
-                    label: 'Attach',
-                    onTap: _showUploadPopup,
+                  // File chip area (Gemini style) - appears above input
+                  if (_attachedFile != null)
+                    _GeminiFileChip(
+                      fileName: _attachedFile!,
+                      fileType: _attachedFileType ?? 'text',
+                      onRemove: () => setState(() {
+                        _attachedFile = null;
+                        _attachedFilePath = null;
+                        _attachedFileType = null;
+                      }),
+                    ),
+                  TextField(
+                    controller: _inputController,
+                    maxLines: isInitial
+                        ? 3
+                        : 6, // Increased for more visible text
+                    minLines: 3, // Always show at least 3 lines
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppStyles.mTextPrimary,
+                    ),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _handleSubmit(),
+                    onChanged: (_) =>
+                        setState(() {}), // Update button state on text change
+                    decoration: InputDecoration(
+                      hintText: 'Type a meeting note...',
+                      hintStyle: TextStyle(
+                        color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
+                      ),
+                      border: InputBorder.none,
+                    ),
                   ),
-                  if (_attachedFile != null) ...[
-                    // Old position removed
-                  ],
+                  const SizedBox(height: 12), // Reduced spacing
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          _InputActionButton(
+                            icon: LucideIcons.paperclip,
+                            label: 'Attach',
+                            onTap: _showUploadPopup,
+                          ),
+                          if (_attachedFile != null) ...[
+                            // Old position removed
+                          ],
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _IconButton(
+                            icon: LucideIcons.mic,
+                            onTap: _startRecording,
+                            size: 44,
+                          ),
+                          const SizedBox(width: 12),
+                          Builder(
+                            builder: (context) {
+                              final provider = context
+                                  .watch<DayCrafterProvider>();
+                              if (provider.isLoading) {
+                                return _IconButton(
+                                  icon: LucideIcons.x,
+                                  onTap: () => context
+                                      .read<DayCrafterProvider>()
+                                      .cancelCurrentRequest(),
+                                  isDanger: true,
+                                  size: 44,
+                                  enabled: true,
+                                );
+                              }
+                              return _IconButton(
+                                icon: LucideIcons.send,
+                                onTap: _handleSubmit,
+                                isPrimary: true,
+                                size: 44,
+                                enabled:
+                                    _inputController.text.isNotEmpty ||
+                                    _attachedFile != null,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ],
               ),
-              Row(
-                children: [
-                  _IconButton(
-                    icon: LucideIcons.mic,
-                    onTap: _startRecording,
-                    size: 44,
-                  ),
-                  const SizedBox(width: 12),
-                  Builder(
-                    builder: (context) {
-                      final provider = context.watch<DayCrafterProvider>();
-                      if (provider.isLoading) {
-                        return _IconButton(
-                          icon: LucideIcons.x,
-                          onTap: () => context
-                              .read<DayCrafterProvider>()
-                              .cancelCurrentRequest(),
-                          isDanger: true,
-                          size: 44,
-                          enabled: true,
-                        );
-                      }
-                      return _IconButton(
-                        icon: LucideIcons.send,
-                        onTap: _handleSubmit,
-                        isPrimary: true,
-                        size: 44,
-                        enabled:
-                            _inputController.text.isNotEmpty ||
-                            _attachedFile != null,
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
       ),
+    );
+  }
+
+  Widget _buildRecordingControls() {
+    return Row(
+      children: [
+        const SizedBox(width: 8),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: const BoxDecoration(
+            color: Colors.red,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          _formatTime(_timerSeconds),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.redAccent,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(width: 20),
+        const Expanded(child: _RecordingWaveAnimation()),
+        const SizedBox(width: 20),
+        _IconButton(
+          icon: LucideIcons.trash2,
+          onTap: () => _stopRecording(false),
+          isDanger: true,
+          size: 44,
+        ),
+        const SizedBox(width: 12),
+        _IconButton(
+          icon: LucideIcons.check,
+          onTap: () => _stopRecording(true),
+          isPrimary: true,
+          size: 44,
+        ),
+      ],
     );
   }
 }
 
-class _CircularIconButton extends StatelessWidget {
+class _RecordingWaveAnimation extends StatefulWidget {
+  const _RecordingWaveAnimation();
+
+  @override
+  State<_RecordingWaveAnimation> createState() =>
+      _RecordingWaveAnimationState();
+}
+
+class _RecordingWaveAnimationState extends State<_RecordingWaveAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(8, (index) {
+            final waveHeight =
+                10 +
+                20 *
+                    (0.5 +
+                        0.5 *
+                            Math.sin(
+                              (_controller.value * 2 * Math.pi) + (index * 0.5),
+                            ));
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              width: 3,
+              height: waveHeight,
+              decoration: BoxDecoration(
+                color: AppStyles.mPrimary.withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
+class _CircularIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color? backgroundColor;
@@ -1393,34 +1567,54 @@ class _CircularIconButton extends StatelessWidget {
   });
 
   @override
+  State<_CircularIconButton> createState() => _CircularIconButtonState();
+}
+
+class _CircularIconButtonState extends State<_CircularIconButton> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(40),
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color:
-              backgroundColor ?? AppStyles.mBackground.withValues(alpha: 0.5),
-          shape: BoxShape.circle,
-          boxShadow: backgroundColor != null
-              ? [
-                  BoxShadow(
-                    color: backgroundColor!.withValues(alpha: 0.3),
-                    blurRadius: 15,
-                    offset: const Offset(0, 6),
-                  ),
-                ]
-              : null,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: BorderRadius.circular(40),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? (widget.backgroundColor?.withValues(alpha: 0.8) ??
+                      AppStyles.mPrimary.withValues(alpha: 0.2))
+                : (widget.backgroundColor ??
+                      AppStyles.mBackground.withValues(alpha: 0.5)),
+            shape: BoxShape.circle,
+            boxShadow: (widget.backgroundColor != null || _isHovered)
+                ? [
+                    BoxShadow(
+                      color: (widget.backgroundColor ?? AppStyles.mPrimary)
+                          .withValues(alpha: _isHovered ? 0.4 : 0.3),
+                      blurRadius: _isHovered ? 20 : 15,
+                      offset: Offset(0, _isHovered ? 8 : 6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(
+            widget.icon,
+            color: widget.iconColor ?? AppStyles.mTextPrimary,
+            size: 32,
+          ),
         ),
-        child: Icon(icon, color: iconColor ?? AppStyles.mTextPrimary, size: 32),
       ),
     );
   }
 }
 
-class _InputActionButton extends StatelessWidget {
+class _InputActionButton extends StatefulWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -1432,29 +1626,54 @@ class _InputActionButton extends StatelessWidget {
   });
 
   @override
+  State<_InputActionButton> createState() => _InputActionButtonState();
+}
+
+class _InputActionButtonState extends State<_InputActionButton> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppStyles.bRadiusMedium,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppStyles.mBackground.withValues(alpha: 0.4),
-          borderRadius: AppStyles.bRadiusMedium,
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: AppStyles.mTextPrimary),
-            const SizedBox(width: 10),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppStyles.mTextPrimary,
-              ),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: AppStyles.bRadiusMedium,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? AppStyles.mPrimary.withValues(alpha: 0.15)
+                : AppStyles.mBackground.withValues(alpha: 0.4),
+            borderRadius: AppStyles.bRadiusMedium,
+            border: Border.all(
+              color: _isHovered
+                  ? AppStyles.mPrimary.withValues(alpha: 0.3)
+                  : Colors.transparent,
             ),
-          ],
+          ),
+          child: Row(
+            children: [
+              Icon(
+                widget.icon,
+                size: 18,
+                color: _isHovered ? AppStyles.mPrimary : AppStyles.mTextPrimary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: _isHovered
+                      ? AppStyles.mPrimary
+                      : AppStyles.mTextPrimary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1545,7 +1764,7 @@ class _GeminiFileChip extends StatelessWidget {
   }
 }
 
-class _IconButton extends StatelessWidget {
+class _IconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
   final bool isPrimary;
@@ -1563,38 +1782,61 @@ class _IconButton extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final bgColor = isDanger
-        ? Colors.red
-        : (isPrimary
-              ? (enabled ? AppStyles.mPrimary : AppStyles.mBackground)
-              : AppStyles.mBackground.withValues(alpha: 0.4));
-    final iconColor = isDanger
-        ? Colors.white
-        : (isPrimary
-              ? (enabled ? Colors.white : AppStyles.mTextSecondary)
-              : AppStyles.mTextPrimary);
+  State<_IconButton> createState() => _IconButtonState();
+}
 
-    return InkWell(
-      onTap: enabled ? onTap : null,
-      borderRadius: BorderRadius.circular(size / 2),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: bgColor,
-          shape: BoxShape.circle,
-          boxShadow: (isDanger || (isPrimary && enabled))
-              ? [
-                  BoxShadow(
-                    color: bgColor.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+class _IconButtonState extends State<_IconButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool canHover = widget.enabled;
+
+    final bgColor = widget.isDanger
+        ? (canHover && _isHovered ? Colors.red.shade700 : Colors.red)
+        : (widget.isPrimary
+              ? (widget.enabled
+                    ? (canHover && _isHovered
+                          ? AppStyles.mPrimary.withValues(alpha: 0.8)
+                          : AppStyles.mPrimary)
+                    : AppStyles.mBackground)
+              : (canHover && _isHovered
+                    ? AppStyles.mBackground.withValues(alpha: 0.7)
+                    : AppStyles.mBackground.withValues(alpha: 0.4)));
+
+    final iconColor = widget.isDanger
+        ? Colors.white
+        : (widget.isPrimary
+              ? (widget.enabled ? Colors.white : AppStyles.mTextSecondary)
+              : (canHover && _isHovered
+                    ? AppStyles.mPrimary
+                    : AppStyles.mTextPrimary));
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: InkWell(
+        onTap: widget.enabled ? widget.onTap : null,
+        borderRadius: BorderRadius.circular(widget.size / 2),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+            boxShadow: (widget.isDanger || (widget.isPrimary && widget.enabled))
+                ? [
+                    BoxShadow(
+                      color: bgColor.withValues(alpha: _isHovered ? 0.4 : 0.3),
+                      blurRadius: _isHovered ? 16 : 12,
+                      offset: Offset(0, _isHovered ? 6 : 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(widget.icon, color: iconColor, size: widget.size * 0.46),
         ),
-        child: Icon(icon, color: iconColor, size: size * 0.46),
       ),
     );
   }
@@ -2159,6 +2401,48 @@ class _UploadOptionButton extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HoverableContainer extends StatefulWidget {
+  final Widget child;
+  final EdgeInsets? padding;
+  final Decoration decoration;
+  final Decoration? hoverDecoration;
+  final VoidCallback onTap;
+
+  const _HoverableContainer({
+    required this.child,
+    required this.onTap,
+    this.padding,
+    required this.decoration,
+    this.hoverDecoration,
+  });
+
+  @override
+  State<_HoverableContainer> createState() => _HoverableContainerState();
+}
+
+class _HoverableContainerState extends State<_HoverableContainer> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: widget.padding,
+          decoration: _isHovered
+              ? (widget.hoverDecoration ?? widget.decoration)
+              : widget.decoration,
+          child: widget.child,
         ),
       ),
     );

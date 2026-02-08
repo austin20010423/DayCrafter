@@ -25,6 +25,29 @@ class Sidebar extends StatefulWidget {
 
 class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   bool _isCollapsed = false;
+  bool _isProjectsExpanded = true;
+  late AnimationController _projectsAnimationController;
+  late Animation<double> _projectsExpansionAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _projectsAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _projectsExpansionAnimation = CurvedAnimation(
+      parent: _projectsAnimationController,
+      curve: Curves.easeInOutCubic,
+    );
+    _projectsAnimationController.value = 1.0; // Start expanded
+  }
+
+  @override
+  void dispose() {
+    _projectsAnimationController.dispose();
+    super.dispose();
+  }
 
   static const double _expandedWidth = 280.0;
   static const double _collapsedWidth = 72.0;
@@ -87,21 +110,12 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Center(
-                    child: InkWell(
+                    child: _SidebarHoverButton(
                       onTap: () => setState(() => _isCollapsed = !_isCollapsed),
-                      borderRadius: AppStyles.bRadiusSmall,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: AppStyles.bRadiusSmall,
-                        ),
-                        child: const Icon(
-                          LucideIcons.menu,
-                          size: 20,
-                          color: Colors.white70,
-                        ),
+                      child: const Icon(
+                        LucideIcons.menu,
+                        size: 20,
+                        color: Colors.white70,
                       ),
                     ),
                   ),
@@ -113,22 +127,15 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                   child: Row(
                     children: [
                       // Menu/Collapse toggle button
-                      InkWell(
+                      _SidebarHoverButton(
                         onTap: () =>
                             setState(() => _isCollapsed = !_isCollapsed),
-                        borderRadius: AppStyles.bRadiusSmall,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: AppStyles.bRadiusSmall,
-                          ),
-                          child: const Icon(
-                            LucideIcons.panelLeftClose,
-                            size: 20,
-                            color: Colors.white70,
-                          ),
+                        child: Icon(
+                          _isCollapsed
+                              ? LucideIcons.panelLeftOpen
+                              : LucideIcons.panelLeftClose,
+                          size: 20,
+                          color: Colors.white70,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -212,87 +219,164 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
 
               const SizedBox(height: 32),
 
-              // Project Section Header - hide when collapsed
-              if (showExpanded)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Row(
-                    children: [
-                      Text(
-                        l10n.project,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(
-                        LucideIcons.chevronDown,
-                        size: 16,
-                        color: Colors.white70,
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: widget.onAddProject,
-                        icon: const Icon(
-                          LucideIcons.plusCircle,
-                          size: 20,
-                          color: Colors.white70,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        splashRadius: 20,
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Collapsed: Show add project button centered
-              if (!showExpanded)
-                Center(
-                  child: IconButton(
-                    onPressed: widget.onAddProject,
-                    icon: const Icon(
-                      LucideIcons.plusCircle,
-                      size: 24,
-                      color: Colors.white70,
-                    ),
-                    tooltip: 'Add Project',
-                  ),
-                ),
-
-              if (showExpanded) const SizedBox(height: 16),
-
-              // Project List
+              // Project Section Area
               Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: showExpanded ? 16 : 12,
-                  ),
-                  itemCount: projects.length,
-                  itemBuilder: (context, index) {
-                    final project = projects[index];
-                    final isActive = project.id == activeProjectId;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: _ProjectItem(
-                        label: project.name,
-                        emoji: project.emoji,
-                        isActive: isActive,
-                        isCollapsed: !showExpanded,
-                        markColor: _parseHexColor(project.colorHex),
-                        onTap: () => provider.setActiveProject(project.id),
-                        onDelete: () => _showDeleteDialog(
-                          context,
-                          provider,
-                          project.id,
-                          project.name,
+                child: showExpanded
+                    ? SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            // Project Section Header
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                              ),
+                              child: InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _isProjectsExpanded = !_isProjectsExpanded;
+                                    if (_isProjectsExpanded) {
+                                      _projectsAnimationController.forward();
+                                    } else {
+                                      _projectsAnimationController.reverse();
+                                    }
+                                  });
+                                },
+                                borderRadius: AppStyles.bRadiusMedium,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8.0,
+                                    vertical: 8.0,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        l10n.project,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      AnimatedRotation(
+                                        turns: _isProjectsExpanded ? 0 : -0.25,
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        child: const Icon(
+                                          LucideIcons.chevronDown,
+                                          size: 16,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      _SidebarHoverButton(
+                                        onTap: widget.onAddProject,
+                                        tooltip: 'Add Project',
+                                        child: const Icon(
+                                          LucideIcons.plusCircle,
+                                          size: 20,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Project List with Animation
+                            FadeTransition(
+                              opacity: _projectsExpansionAnimation,
+                              child: SizeTransition(
+                                sizeFactor: _projectsExpansionAnimation,
+                                axisAlignment: -1.0,
+                                child: Column(
+                                  children: [
+                                    ...projects.map((project) {
+                                      final isActive =
+                                          project.id == activeProjectId;
+                                      return Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 4,
+                                          left: 16,
+                                          right: 16,
+                                        ),
+                                        child: _ProjectItem(
+                                          label: project.name,
+                                          emoji: project.emoji,
+                                          isActive: isActive,
+                                          isCollapsed: false,
+                                          markColor: _parseHexColor(
+                                            project.colorHex,
+                                          ),
+                                          onTap: () => provider
+                                              .setActiveProject(project.id),
+                                          onDelete: () => _showDeleteDialog(
+                                            context,
+                                            provider,
+                                            project.id,
+                                            project.name,
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                      )
+                    : Column(
+                        children: [
+                          // Collapsed: Show add project button centered
+                          Center(
+                            child: _SidebarHoverButton(
+                              onTap: widget.onAddProject,
+                              tooltip: 'Add Project',
+                              child: const Icon(
+                                LucideIcons.plusCircle,
+                                size: 24,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Collapsed: Show project icons in a scrollable list
+                          Expanded(
+                            child: ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              itemCount: projects.length,
+                              itemBuilder: (context, index) {
+                                final project = projects[index];
+                                final isActive = project.id == activeProjectId;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: _ProjectItem(
+                                    label: project.name,
+                                    emoji: project.emoji,
+                                    isActive: isActive,
+                                    isCollapsed: true,
+                                    markColor: _parseHexColor(project.colorHex),
+                                    onTap: () =>
+                                        provider.setActiveProject(project.id),
+                                    onDelete: () => _showDeleteDialog(
+                                      context,
+                                      provider,
+                                      project.id,
+                                      project.name,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
               ),
 
               // User Section
@@ -374,7 +458,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   }
 }
 
-class _SidebarItem extends StatelessWidget {
+class _SidebarItem extends StatefulWidget {
   final String label;
   final IconData icon;
   final bool isActive;
@@ -390,55 +474,75 @@ class _SidebarItem extends StatelessWidget {
   });
 
   @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: isCollapsed ? label : '',
-      waitDuration: const Duration(milliseconds: 500),
+    Widget item = MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: AppStyles.bRadiusMedium,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: EdgeInsets.symmetric(
-            horizontal: isCollapsed ? 12 : 16,
+            horizontal: widget.isCollapsed ? 12 : 16,
             vertical: 12,
           ),
           decoration: BoxDecoration(
-            color: isActive
+            color: widget.isActive
                 ? AppStyles.mPrimary.withValues(alpha: 0.3)
-                : Colors.transparent,
+                : (_isHovered
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : Colors.transparent),
             borderRadius: AppStyles.bRadiusMedium,
           ),
-          child: isCollapsed
+          child: widget.isCollapsed
               ? Center(
                   child: Icon(
-                    icon,
+                    widget.icon,
                     size: 22,
-                    color: isActive ? Colors.white : AppStyles.mTextSecondary,
+                    color: widget.isActive
+                        ? Colors.white
+                        : (_isHovered
+                              ? Colors.white.withValues(alpha: 0.9)
+                              : AppStyles.mTextSecondary),
                   ),
                 )
               : Row(
                   children: [
                     Icon(
-                      icon,
+                      widget.icon,
                       size: 20,
-                      color: isActive ? Colors.white : AppStyles.mTextSecondary,
+                      color: widget.isActive
+                          ? Colors.white
+                          : (_isHovered
+                                ? Colors.white.withValues(alpha: 0.9)
+                                : AppStyles.mTextSecondary),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Text(
-                        label,
+                        widget.label,
                         style: TextStyle(
-                          color: isActive
+                          color: widget.isActive
                               ? Colors.white
-                              : AppStyles.mTextSecondary,
+                              : (_isHovered
+                                    ? Colors.white.withValues(alpha: 0.9)
+                                    : AppStyles.mTextSecondary),
                           fontSize: 15,
-                          fontWeight: isActive
+                          fontWeight: widget.isActive
                               ? FontWeight.w600
                               : FontWeight.normal,
                         ),
                       ),
                     ),
-                    if (isActive)
+                    if (widget.isActive)
                       Container(
                         width: 6,
                         height: 6,
@@ -452,6 +556,16 @@ class _SidebarItem extends StatelessWidget {
         ),
       ),
     );
+
+    if (widget.isCollapsed) {
+      return Tooltip(
+        message: widget.label,
+        waitDuration: const Duration(milliseconds: 500),
+        child: item,
+      );
+    }
+
+    return item;
   }
 }
 
@@ -488,53 +602,72 @@ class _ProjectItemState extends State<_ProjectItem> {
       return Tooltip(
         message: widget.label,
         waitDuration: const Duration(milliseconds: 500),
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: AppStyles.bRadiusMedium,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              // Use project color in collapsed view too
-              color: widget.isActive
-                  ? (widget.markColor ?? AppStyles.mPrimary).withValues(
-                      alpha: 0.35,
-                    )
-                  : (widget.markColor ?? Colors.transparent).withValues(
-                      alpha: 0.1,
-                    ),
-              borderRadius: AppStyles.bRadiusMedium,
-            ),
-            child: Center(
-              child: widget.emoji != null && widget.emoji!.isNotEmpty
-                  ? Text(widget.emoji!, style: TextStyle(fontSize: 22))
-                  : Stack(
-                      children: [
-                        Icon(
-                          LucideIcons.folder,
-                          size: 22,
-                          color: widget.isActive
-                              ? Colors.white
-                              : AppStyles.mTextSecondary,
-                        ),
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color:
-                                  widget.markColor ?? AppStyles.mTextSecondary,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppStyles.mSidebarBg,
-                                width: 1,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          child: InkWell(
+            onTap: widget.onTap,
+            borderRadius: AppStyles.bRadiusMedium,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                // Use project color in collapsed view too
+                color: widget.isActive
+                    ? (widget.markColor ?? AppStyles.mPrimary).withValues(
+                        alpha: 0.35,
+                      )
+                    : (_isHovered
+                          ? (widget.markColor ?? AppStyles.mPrimary).withValues(
+                              alpha: 0.2,
+                            )
+                          : (widget.markColor ?? Colors.transparent).withValues(
+                              alpha: 0.1,
+                            )),
+                borderRadius: AppStyles.bRadiusMedium,
+                border: Border.all(
+                  color: _isHovered || widget.isActive
+                      ? (widget.markColor ?? AppStyles.mPrimary).withValues(
+                          alpha: 0.5,
+                        )
+                      : Colors.transparent,
+                ),
+              ),
+              child: Center(
+                child: widget.emoji != null && widget.emoji!.isNotEmpty
+                    ? Text(widget.emoji!, style: TextStyle(fontSize: 22))
+                    : Stack(
+                        children: [
+                          Icon(
+                            LucideIcons.folder,
+                            size: 22,
+                            color: widget.isActive
+                                ? Colors.white
+                                : (_isHovered
+                                      ? Colors.white.withValues(alpha: 0.9)
+                                      : AppStyles.mTextSecondary),
+                          ),
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color:
+                                    widget.markColor ??
+                                    AppStyles.mTextSecondary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppStyles.mSidebarBg,
+                                  width: 1,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -548,7 +681,8 @@ class _ProjectItemState extends State<_ProjectItem> {
       child: InkWell(
         onTap: widget.onTap,
         borderRadius: AppStyles.bRadiusMedium,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             // Use transparent/light background
@@ -560,7 +694,9 @@ class _ProjectItemState extends State<_ProjectItem> {
             borderRadius: AppStyles.bRadiusMedium,
             // Full border with project color
             border: Border.all(
-              color: widget.markColor ?? AppStyles.mPrimary,
+              color: (widget.markColor ?? AppStyles.mPrimary).withValues(
+                alpha: widget.isActive ? 1.0 : (_isHovered ? 0.8 : 0.4),
+              ),
               width: widget.isActive ? 2 : 1.5,
             ),
           ),
@@ -615,5 +751,60 @@ class _ProjectItemState extends State<_ProjectItem> {
         ),
       ),
     );
+  }
+}
+
+class _SidebarHoverButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final String? tooltip;
+
+  const _SidebarHoverButton({required this.child, this.onTap, this.tooltip});
+
+  @override
+  State<_SidebarHoverButton> createState() => _SidebarHoverButtonState();
+}
+
+class _SidebarHoverButtonState extends State<_SidebarHoverButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isEnabled = widget.onTap != null;
+
+    Widget button = MouseRegion(
+      onEnter: (_) => isEnabled ? setState(() => _isHovered = true) : null,
+      onExit: (_) => isEnabled ? setState(() => _isHovered = false) : null,
+      child: InkWell(
+        onTap: widget.onTap,
+        borderRadius: AppStyles.bRadiusSmall,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isEnabled
+                ? (_isHovered
+                      ? Colors.white.withValues(alpha: 0.2)
+                      : Colors.white.withValues(alpha: 0.1))
+                : Colors.transparent,
+            borderRadius: AppStyles.bRadiusSmall,
+            border: Border.all(
+              color: isEnabled && _isHovered
+                  ? Colors.white.withValues(alpha: 0.3)
+                  : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+
+    if (widget.tooltip != null) {
+      button = Tooltip(message: widget.tooltip!, child: button);
+    }
+
+    return button;
   }
 }
