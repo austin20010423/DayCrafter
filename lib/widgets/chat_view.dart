@@ -614,37 +614,35 @@ class _ChatViewState extends State<ChatView> {
         project.messages.last.role == MessageRole.model;
     final showLoadingBubble = isLoading && !isStreamingAiMessage;
 
-    return Stack(
+    return Column(
       children: [
-        Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(48, 40, 48, 180),
-                itemCount:
-                    project.messages.length + (showLoadingBubble ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == project.messages.length) {
-                    return _buildLoadingBubble();
-                  }
-                  final msg = project.messages[index];
-                  return _buildMessageBubble(
-                    msg,
-                    isStreaming:
-                        isLoading &&
-                        index == project.messages.length - 1 &&
-                        msg.role == MessageRole.model,
-                  );
-                },
-              ),
-            ),
-          ],
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(
+              48,
+              40,
+              48,
+              40,
+            ), // Reduced bottom padding
+            itemCount: project.messages.length + (showLoadingBubble ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == project.messages.length) {
+                return _buildLoadingBubble();
+              }
+              final msg = project.messages[index];
+              return _buildMessageBubble(
+                msg,
+                isStreaming:
+                    isLoading &&
+                    index == project.messages.length - 1 &&
+                    msg.role == MessageRole.model,
+              );
+            },
+          ),
         ),
-        Positioned(
-          left: 32,
-          right: 32,
-          bottom: 32,
+        Container(
+          padding: const EdgeInsets.fromLTRB(32, 16, 32, 32),
           child: _buildInputBox(false),
         ),
       ],
@@ -737,23 +735,27 @@ class _ChatViewState extends State<ChatView> {
     }
 
     Widget bubbleContent = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: BoxDecoration(
-        color: isUser ? AppStyles.mPrimary : AppStyles.mSurface,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(24),
-          topRight: const Radius.circular(24),
-          bottomLeft: Radius.circular(isUser ? 24 : 8),
-          bottomRight: Radius.circular(isUser ? 8 : 24),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      padding: isUser
+          ? const EdgeInsets.symmetric(horizontal: 24, vertical: 16)
+          : const EdgeInsets.only(top: 8, bottom: 8), // Minimal padding for AI
+      decoration: isUser
+          ? BoxDecoration(
+              color: AppStyles.mPrimary,
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(8),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            )
+          : null, // No box decoration for AI responses
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -805,7 +807,7 @@ class _ChatViewState extends State<ChatView> {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: EdgeInsets.symmetric(vertical: isUser ? 12 : 24),
       child: Row(
         mainAxisAlignment: isUser
             ? MainAxisAlignment.end
@@ -813,16 +815,7 @@ class _ChatViewState extends State<ChatView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            ClipRRect(
-              borderRadius: AppStyles.bRadiusSmall,
-              child: Image.asset(
-                'assets/images/logo.jpg',
-                width: 36,
-                height: 36,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 16),
+            // Avatar removed as per Gemini style request
           ],
           Flexible(
             child: Column(
@@ -1384,7 +1377,7 @@ class _ChatViewState extends State<ChatView> {
                     onChanged: (_) =>
                         setState(() {}), // Update button state on text change
                     decoration: InputDecoration(
-                      hintText: 'Type a meeting note...',
+                      hintText: 'How can I help you?',
                       hintStyle: TextStyle(
                         color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
                       ),
