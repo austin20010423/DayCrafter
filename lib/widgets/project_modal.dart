@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../styles.dart';
 import '../l10n/app_localizations.dart';
@@ -8,12 +7,12 @@ import '../l10n/app_localizations.dart';
 class ProjectCreationData {
   final String name;
   final String colorHex;
-  final String emoji;
+  final String icon;
 
   ProjectCreationData({
     required this.name,
     required this.colorHex,
-    required this.emoji,
+    required this.icon,
   });
 }
 
@@ -29,8 +28,8 @@ class ProjectModal extends StatefulWidget {
 class _ProjectModalState extends State<ProjectModal> {
   final _controller = TextEditingController();
   Color _selectedColor = const Color(0xFF7A8D9A); // Default Morandi Blue
-  String _selectedEmoji = '📁'; // Default emoji
-  bool _showEmojiPicker = false;
+  String _selectedIcon = 'folder'; // Default icon name
+  bool _showIconPicker = false;
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +53,8 @@ class _ProjectModalState extends State<ProjectModal> {
                 children: [
                   Row(
                     children: [
-                      // Emoji button (clickable to open picker)
-                      _buildEmojiButton(),
+                      // Icon button (clickable to open picker)
+                      _buildIconButton(),
                       const SizedBox(width: 16),
                       Text(
                         AppLocalizations.of(context)!.newProject,
@@ -82,7 +81,7 @@ class _ProjectModalState extends State<ProjectModal> {
               const SizedBox(height: 8),
               TextField(
                 controller: _controller,
-                autofocus: !_showEmojiPicker,
+                autofocus: !_showIconPicker,
                 style: TextStyle(color: AppStyles.mTextPrimary),
                 decoration: InputDecoration(
                   hintText: AppLocalizations.of(context)!.projectNameHint,
@@ -110,11 +109,11 @@ class _ProjectModalState extends State<ProjectModal> {
               _buildColorPicker(),
               const SizedBox(height: 20),
 
-              // Emoji Picker (expandable)
-              if (_showEmojiPicker) ...[
+              // Icon Picker (expandable)
+              if (_showIconPicker) ...[
                 _buildSectionLabel(AppLocalizations.of(context)!.chooseIcon),
                 const SizedBox(height: 10),
-                _buildEmojiPickerWidget(),
+                _buildIconPickerWidget(),
                 const SizedBox(height: 16),
               ],
 
@@ -168,11 +167,11 @@ class _ProjectModalState extends State<ProjectModal> {
     );
   }
 
-  Widget _buildEmojiButton() {
+  Widget _buildIconButton() {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => setState(() => _showEmojiPicker = !_showEmojiPicker),
+        onTap: () => setState(() => _showIconPicker = !_showIconPicker),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: 52,
@@ -181,12 +180,12 @@ class _ProjectModalState extends State<ProjectModal> {
             color: _selectedColor.withValues(alpha: 0.25),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: _showEmojiPicker
+              color: _showIconPicker
                   ? _selectedColor
                   : _selectedColor.withValues(alpha: 0.5),
               width: 2,
             ),
-            boxShadow: _showEmojiPicker
+            boxShadow: _showIconPicker
                 ? [
                     BoxShadow(
                       color: _selectedColor.withValues(alpha: 0.3),
@@ -199,9 +198,10 @@ class _ProjectModalState extends State<ProjectModal> {
           child: Stack(
             children: [
               Center(
-                child: Text(
-                  _selectedEmoji,
-                  style: const TextStyle(fontSize: 26),
+                child: Icon(
+                  ProjectIcons.getIcon(_selectedIcon),
+                  color: _selectedColor,
+                  size: 26,
                 ),
               ),
               Positioned(
@@ -214,7 +214,7 @@ class _ProjectModalState extends State<ProjectModal> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    _showEmojiPicker ? Icons.keyboard_arrow_up : Icons.edit,
+                    _showIconPicker ? Icons.keyboard_arrow_up : Icons.edit,
                     size: 12,
                     color: AppStyles.mTextSecondary,
                   ),
@@ -262,63 +262,57 @@ class _ProjectModalState extends State<ProjectModal> {
     );
   }
 
-  Widget _buildEmojiPickerWidget() {
+  Widget _buildIconPickerWidget() {
+    final icons = ProjectIcons.availableIcons;
     return Container(
-      height: 200,
+      height: 220,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppStyles.mBackground.withValues(alpha: 0.5),
         borderRadius: AppStyles.bRadiusSmall,
       ),
-      child: ClipRRect(
-        borderRadius: AppStyles.bRadiusSmall,
-        child: EmojiPicker(
-          onEmojiSelected: (category, emoji) {
-            setState(() {
-              _selectedEmoji = emoji.emoji;
-              _showEmojiPicker = false;
-            });
-          },
-          config: Config(
-            height: 200,
-            checkPlatformCompatibility: true,
-            emojiViewConfig: EmojiViewConfig(
-              columns: 8,
-              emojiSizeMax: 28,
-              verticalSpacing: 0,
-              horizontalSpacing: 0,
-              gridPadding: const EdgeInsets.symmetric(horizontal: 8),
-              backgroundColor: Colors.transparent,
-              noRecents: Text(
-                'No Recent Emojis',
-                style: TextStyle(fontSize: 14, color: AppStyles.mTextSecondary),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            categoryViewConfig: CategoryViewConfig(
-              initCategory: Category.OBJECTS,
-              backgroundColor: Colors.transparent,
-              indicatorColor: _selectedColor,
-              iconColor: AppStyles.mTextSecondary,
-              iconColorSelected: _selectedColor,
-              categoryIcons: const CategoryIcons(
-                recentIcon: Icons.access_time,
-                smileyIcon: Icons.emoji_emotions_outlined,
-                animalIcon: Icons.pets_outlined,
-                foodIcon: Icons.fastfood_outlined,
-                activityIcon: Icons.sports_soccer_outlined,
-                travelIcon: Icons.directions_car_outlined,
-                objectIcon: Icons.lightbulb_outline,
-                symbolIcon: Icons.emoji_symbols_outlined,
-                flagIcon: Icons.flag_outlined,
-              ),
-            ),
-            bottomActionBarConfig: const BottomActionBarConfig(enabled: false),
-            searchViewConfig: SearchViewConfig(
-              backgroundColor: Colors.transparent,
-              buttonIconColor: AppStyles.mTextSecondary,
-            ),
-          ),
+      child: GridView.builder(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 6,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
         ),
+        itemCount: icons.length,
+        itemBuilder: (context, index) {
+          final iconName = icons[index];
+          final isSelected = _selectedIcon == iconName;
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedIcon = iconName;
+                  _showIconPicker = false;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? _selectedColor.withValues(alpha: 0.2)
+                      : Colors.transparent,
+                  borderRadius: AppStyles.bRadiusSmall,
+                  border: Border.all(
+                    color: isSelected ? _selectedColor : Colors.transparent,
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  ProjectIcons.getIcon(iconName),
+                  color: isSelected
+                      ? _selectedColor
+                      : _selectedColor.withValues(alpha: 0.5),
+                  size: 20,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -330,7 +324,7 @@ class _ProjectModalState extends State<ProjectModal> {
         ProjectCreationData(
           name: _controller.text.trim(),
           colorHex: '#${colorInt.toRadixString(16).substring(2).toUpperCase()}',
-          emoji: _selectedEmoji,
+          icon: _selectedIcon,
         ),
       );
       Navigator.pop(context);

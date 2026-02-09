@@ -16,6 +16,7 @@ class ProjectEntity {
   String description;
   String createdAt;
   String? colorHex;
+  String? icon;
 
   /// User email for per-account data isolation
   String? userEmail;
@@ -31,6 +32,7 @@ class ProjectEntity {
     required this.description,
     required this.createdAt,
     this.colorHex,
+    this.icon,
     this.userEmail,
   });
 
@@ -42,6 +44,7 @@ class ProjectEntity {
       description: project.description,
       createdAt: project.createdAt,
       colorHex: project.colorHex,
+      icon: project.icon,
     );
   }
 
@@ -53,6 +56,7 @@ class ProjectEntity {
       description: description,
       createdAt: createdAt,
       colorHex: colorHex,
+      icon: icon,
       messages: messages.map((m) => m.toMessage()).toList(),
     );
   }
@@ -80,6 +84,7 @@ class MessageEntity {
 
   /// JSON-serialized tasks list
   String? tasksJson;
+
   /// JSON-serialized attachments list (keeps small metadata like name/type/path)
   String? attachmentsJson;
 
@@ -111,7 +116,9 @@ class MessageEntity {
       text: message.text,
       timestamp: message.timestamp,
       tasksJson: message.tasks != null ? jsonEncode(message.tasks) : null,
-      attachmentsJson: message.attachments != null ? jsonEncode(message.attachments) : null,
+      attachmentsJson: message.attachments != null
+          ? jsonEncode(message.attachments)
+          : null,
     );
   }
 

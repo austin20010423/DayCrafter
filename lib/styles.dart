@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 /// Theme data for dark Morandi palette
 class DarkMorandiTheme {
@@ -123,6 +124,41 @@ class AppStyles {
       dialogBackgroundColor: mSurface,
       dividerColor: mBackground,
     );
+  }
+}
+
+class ProjectIcons {
+  static final Map<String, IconData> _iconMap = {
+    'folder': LucideIcons.folder,
+    'briefcase': LucideIcons.briefcase,
+    'home': LucideIcons.home,
+    'shopping_cart': LucideIcons.shoppingCart,
+    'user': LucideIcons.user,
+    'users': LucideIcons.users,
+    'book': LucideIcons.book,
+    'code': LucideIcons.code,
+    'database': LucideIcons.database,
+    'heart': LucideIcons.heart,
+    'star': LucideIcons.star,
+    'music': LucideIcons.music,
+    'video': LucideIcons.video,
+    'camera': LucideIcons.camera,
+    'map': LucideIcons.map,
+    'plane': LucideIcons.plane,
+    'coffee': LucideIcons.coffee,
+    'pizza': LucideIcons.pizza,
+    'zap': LucideIcons.zap,
+    'target': LucideIcons.target,
+    'flag': LucideIcons.flag,
+    'bookmark': LucideIcons.bookmark,
+    'calendar': LucideIcons.calendar,
+  };
+
+  static List<String> get availableIcons => _iconMap.keys.toList();
+
+  static IconData getIcon(String? name) {
+    if (name == null) return LucideIcons.folder;
+    return _iconMap[name] ?? LucideIcons.folder;
   }
 }
 

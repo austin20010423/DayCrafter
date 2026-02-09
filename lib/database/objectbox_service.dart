@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:objectbox/objectbox.dart';
@@ -447,6 +448,7 @@ class ObjectBoxService {
       entity.name = project.name;
       entity.description = project.description;
       entity.colorHex = project.colorHex;
+      entity.icon = project.icon;
       // Don't overwrite existing userEmail unless specified
       if (userEmail != null) entity.userEmail = userEmail;
     } else {
@@ -472,7 +474,7 @@ class ObjectBoxService {
       // Update existing message
       entity.text = message.text;
       entity.tasksJson = message.tasks != null
-          ? message.tasks.toString()
+          ? jsonEncode(message.tasks)
           : null;
       if (embedding != null) {
         entity.embedding = embedding;

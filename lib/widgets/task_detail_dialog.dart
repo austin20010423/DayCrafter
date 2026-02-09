@@ -6,6 +6,8 @@ import '../styles.dart';
 import 'add_task_dialog.dart';
 import 'package:flutter_linkify/flutter_linkify.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart';
+import '../provider.dart';
 
 /// A beautiful modal dialog that shows full task details
 class TaskDetailDialog extends StatelessWidget {
@@ -343,6 +345,23 @@ class TaskDetailDialog extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // Delete button
+          TextButton.icon(
+            onPressed: () => _showDeleteConfirmation(context),
+            icon: Icon(
+              LucideIcons.trash2,
+              size: 16,
+              color: AppStyles.priorityHigh,
+            ),
+            label: Text(
+              'Delete',
+              style: TextStyle(color: AppStyles.priorityHigh),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppStyles.priorityHigh,
+            ),
+          ),
+          const SizedBox(width: 8),
           // Edit button
           TextButton.icon(
             onPressed: () {
@@ -376,6 +395,44 @@ class TaskDetailDialog extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppStyles.mSurface,
+        title: Text(
+          'Delete Task?',
+          style: TextStyle(color: AppStyles.mTextPrimary),
+        ),
+        content: Text(
+          'Are you sure you want to delete this task? This action cannot be undone.',
+          style: TextStyle(color: AppStyles.mTextSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final taskId = task['uuid']?.toString() ?? task['id']?.toString();
+              if (taskId != null) {
+                context.read<DayCrafterProvider>().deleteTask(taskId);
+              }
+              Navigator.pop(ctx); // Close confirmation
+              Navigator.pop(context); // Close detail dialog
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppStyles.priorityHigh,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Delete'),
           ),
         ],
       ),

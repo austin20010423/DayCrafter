@@ -305,7 +305,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                         ),
                                         child: _ProjectItem(
                                           label: project.name,
-                                          emoji: project.emoji,
+                                          icon: project.icon,
                                           isActive: isActive,
                                           isCollapsed: false,
                                           markColor: _parseHexColor(
@@ -358,7 +358,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                   padding: const EdgeInsets.only(bottom: 4),
                                   child: _ProjectItem(
                                     label: project.name,
-                                    emoji: project.emoji,
+                                    icon: project.icon,
                                     isActive: isActive,
                                     isCollapsed: true,
                                     markColor: _parseHexColor(project.colorHex),
@@ -571,7 +571,7 @@ class _SidebarItemState extends State<_SidebarItem> {
 
 class _ProjectItem extends StatefulWidget {
   final String label;
-  final String? emoji;
+  final String? icon;
   final bool isActive;
   final bool isCollapsed;
   final Color? markColor;
@@ -583,7 +583,7 @@ class _ProjectItem extends StatefulWidget {
     required this.isActive,
     required this.onTap,
     required this.onDelete,
-    this.emoji,
+    this.icon,
     this.isCollapsed = false,
     this.markColor,
   });
@@ -634,39 +634,33 @@ class _ProjectItemState extends State<_ProjectItem> {
                 ),
               ),
               child: Center(
-                child: widget.emoji != null && widget.emoji!.isNotEmpty
-                    ? Text(widget.emoji!, style: TextStyle(fontSize: 22))
-                    : Stack(
-                        children: [
-                          Icon(
-                            LucideIcons.folder,
-                            size: 22,
-                            color: widget.isActive
-                                ? Colors.white
-                                : (_isHovered
-                                      ? Colors.white.withValues(alpha: 0.9)
-                                      : AppStyles.mTextSecondary),
+                child: Stack(
+                  children: [
+                    Icon(
+                      ProjectIcons.getIcon(widget.icon),
+                      size: 22,
+                      color: widget.isActive
+                          ? Colors.white
+                          : (widget.markColor ?? AppStyles.mTextSecondary),
+                    ),
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: widget.markColor ?? AppStyles.mTextSecondary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppStyles.mSidebarBg,
+                            width: 1,
                           ),
-                          Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color:
-                                    widget.markColor ??
-                                    AppStyles.mTextSecondary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppStyles.mSidebarBg,
-                                  width: 1,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -702,16 +696,14 @@ class _ProjectItemState extends State<_ProjectItem> {
           ),
           child: Row(
             children: [
-              // Show emoji or folder icon
-              widget.emoji != null && widget.emoji!.isNotEmpty
-                  ? Text(widget.emoji!, style: TextStyle(fontSize: 20))
-                  : Icon(
-                      LucideIcons.folder,
-                      size: 20,
-                      color: widget.isActive
-                          ? Colors.white
-                          : AppStyles.mTextSecondary,
-                    ),
+              // Show icon
+              Icon(
+                ProjectIcons.getIcon(widget.icon),
+                size: 20,
+                color: widget.isActive
+                    ? Colors.white
+                    : (widget.markColor ?? AppStyles.mTextSecondary),
+              ),
               const SizedBox(width: 12),
 
               Expanded(
@@ -720,7 +712,8 @@ class _ProjectItemState extends State<_ProjectItem> {
                   style: TextStyle(
                     color: widget.isActive
                         ? Colors.white
-                        : AppStyles.mTextSecondary,
+                        : (widget.markColor?.withValues(alpha: 0.7) ??
+                              AppStyles.mTextSecondary),
                     fontSize: 15,
                     fontWeight: widget.isActive
                         ? FontWeight.w600

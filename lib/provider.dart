@@ -406,7 +406,7 @@ class DayCrafterProvider with ChangeNotifier {
   Future<String> addProject(
     String name, {
     String? colorHex,
-    String? emoji,
+    String? icon,
   }) async {
     // Use provided color or pick from palette
     final effectiveColor = colorHex ?? _getNextAvailableColor();
@@ -422,7 +422,7 @@ class DayCrafterProvider with ChangeNotifier {
       description: '',
       createdAt: DateTime.now().toString(),
       colorHex: effectiveColor,
-      emoji: emoji,
+      icon: icon,
       messages: [],
     );
     _projects.add(newProject);
@@ -724,6 +724,20 @@ class DayCrafterProvider with ChangeNotifier {
       );
 
       db.saveCalendarTasks([entity]);
+
+      if (entity.projectId != null) {
+        final description = entity.description != null
+            ? ' - ${entity.description}'
+            : '';
+        final timeSuffix = entity.startTime != null
+            ? ' at ${entity.startTime}'
+            : '';
+        _recordTaskInProjectMemory(
+          entity.projectId!,
+          'User manually created a task: "${entity.taskName}"$description scheduled for ${entity.calendarDate.toIso8601String().split('T')[0]}$timeSuffix',
+        );
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('❌ Error adding manual task: $e');
@@ -745,25 +759,97 @@ class DayCrafterProvider with ChangeNotifier {
 
       // Update fields
       existing.taskName = taskData['task']?.toString() ?? existing.taskName;
-      existing.description = taskData['Description']?.toString();
-      existing.calendarDate = _parseDate(
-        taskData['dateOnCalendar']?.toString(),
-      );
-      existing.startTime = taskData['start_time']?.toString();
-      existing.endTime = taskData['end_time']?.toString();
+      existing.description =
+          taskData['Description']?.toString() ?? existing.description;
+      if (taskData['dateOnCalendar'] != null) {
+        existing.calendarDate = _parseDate(
+          taskData['dateOnCalendar'].toString(),
+        );
+      }
+      existing.startTime =
+          taskData['start_time']?.toString() ?? existing.startTime;
+      existing.endTime = taskData['end_time']?.toString() ?? existing.endTime;
       existing.priority = taskData['priority'] is int
           ? taskData['priority']
           : existing.priority;
-      existing.isManuallyScheduled = taskData['isManuallyScheduled'] == true;
+      existing.isManuallyScheduled =
+          taskData['isManuallyScheduled'] == true ||
+          existing.isManuallyScheduled;
       existing.projectId =
           taskData['projectId']?.toString() ?? existing.projectId;
       existing.userEmail = _currentUserEmail;
 
       db.saveCalendarTasks([existing]);
+
+      if (existing.projectId != null) {
+        _recordTaskInProjectMemory(
+          existing.projectId!,
+          'User updated a task: "${existing.taskName}" (Scheduled: ${existing.calendarDate.toIso8601String().split('T')[0]})',
+        );
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('❌ Error updating task: $e');
     }
+  }
+
+  /// Delete a task by ID
+  void deleteTask(String taskId) {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return;
+
+    try {
+      final task = db.getCalendarTaskByUuid(taskId);
+      if (task == null) return;
+
+      final taskName = task.taskName;
+      final projectId = task.projectId;
+
+      db.deleteCalendarTaskByUuid(taskId);
+
+      // Record deletion in project memory
+      if (projectId != null) {
+        _recordTaskInProjectMemory(
+          projectId,
+          'User deleted a task: "$taskName"',
+        );
+      }
+
+      notifyListeners();
+      debugPrint('🗑️ Deleted task: $taskName (ID: $taskId)');
+    } catch (e) {
+      debugPrint('❌ Error deleting task: $e');
+    }
+  }
+
+  /// Record a task-related action in the project's semantic memory
+  void _recordTaskInProjectMemory(String projectId, String logMessage) {
+    if (projectId.isEmpty) return;
+
+    final newMessage = Message(
+      id: 'sys_${DateTime.now().millisecondsSinceEpoch}',
+      role: MessageRole.model, // Recorded as model behavior/system trace
+      text: '[System Memory Log] $logMessage',
+      timestamp: DateTime.now(),
+    );
+
+    // 1. Add to ObjectBox for semantic search
+    _saveMessageToObjectBox(newMessage, projectId);
+
+    // 2. Add to LangChain short-term memory if it's the active project
+    if (_activeProjectId == projectId) {
+      _shortTermMemory.addMessageWithId(
+        newMessage.id,
+        newMessage.text,
+        'assistant',
+      );
+      _saveMemoryForProject(projectId);
+    }
+
+    debugPrint(
+      '🧠 Recorded task action in project memory ($projectId): $logMessage',
+    );
   }
 
   DateTime _parseDate(String? dateStr) {
@@ -2100,6 +2186,10 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     // CRM-style cascade delete: removes project, messages, and tasks from DB
     ObjectBoxService.instance.deleteProjectByUuid(projectId);
 
+    // EXTRA SAFETY: Explicitly ensure no tasks for this projectId remain
+    // This handles cases where manual tasks might have been orphaned
+    ObjectBoxService.instance.deleteCalendarTasksForProject(projectId);
+
     // Switch to another project if deleted the active one
     if (_activeProjectId == projectId) {
       // Prevent saving the deleted project's memory in setActiveProject
@@ -2119,7 +2209,7 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     final db = ObjectBoxService.instance;
     final allTasks = db.getAllCalendarTasks(userEmail: _currentUserEmail);
     debugPrint(
-      '🔎 DEBUG check: User has ${allTasks.length} total tasks remaining in DB after deletion.',
+      '🔎 DEBUG check: Project $projectId deleted. User has ${allTasks.length} total tasks remaining in DB.',
     );
   }
 

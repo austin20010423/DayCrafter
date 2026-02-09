@@ -91,7 +91,7 @@ class Project {
   final String description;
   final String createdAt;
   final String? colorHex;
-  final String? emoji;
+  final String? icon;
   final List<Message> messages;
 
   Project({
@@ -100,7 +100,7 @@ class Project {
     required this.description,
     required this.createdAt,
     this.colorHex,
-    this.emoji,
+    this.icon,
     required this.messages,
   });
 
@@ -110,7 +110,7 @@ class Project {
     String? description,
     String? createdAt,
     String? colorHex,
-    String? emoji,
+    String? icon,
     List<Message>? messages,
   }) {
     return Project(
@@ -119,7 +119,7 @@ class Project {
       description: description ?? this.description,
       createdAt: createdAt ?? this.createdAt,
       colorHex: colorHex ?? this.colorHex,
-      emoji: emoji ?? this.emoji,
+      icon: icon ?? this.icon,
       messages: messages ?? this.messages,
     );
   }
@@ -131,7 +131,7 @@ class Project {
       'description': description,
       'createdAt': createdAt,
       'colorHex': colorHex,
-      'emoji': emoji,
+      'icon': icon,
       'messages': messages.map((m) => m.toJson()).toList(),
     };
   }
@@ -143,7 +143,7 @@ class Project {
       description: json['description'],
       createdAt: json['createdAt'],
       colorHex: json['colorHex'],
-      emoji: json['emoji'],
+      icon: json['icon'] ?? json['emoji'],
       messages: (json['messages'] as List)
           .map((m) => Message.fromJson(m))
           .toList(),

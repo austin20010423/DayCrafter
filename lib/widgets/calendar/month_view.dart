@@ -230,58 +230,12 @@ class MonthView extends StatelessWidget {
                         final isSelected = cellDate.day == selectedDate.day;
 
                         return Expanded(
-                          child: GestureDetector(
-                            onTap: () => provider.setSelectedDate(cellDate),
-                            child: Container(
-                              margin: const EdgeInsets.all(2),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppStyles.mPrimary.withValues(alpha: 0.15)
-                                    : Colors.transparent,
-                                borderRadius: AppStyles.bRadiusSmall,
-                                border: isToday
-                                    ? Border.all(
-                                        color: AppStyles.mPrimary,
-                                        width: 2,
-                                      )
-                                    : null,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? AppStyles.mPrimary
-                                          : Colors.transparent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        dayNum.toString(),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: isToday || isSelected
-                                              ? FontWeight.bold
-                                              : FontWeight.normal,
-                                          color: isSelected
-                                              ? Colors.white
-                                              : (isToday
-                                                    ? AppStyles.mPrimary
-                                                    : AppStyles.mTextPrimary),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  // Task indicators
-                                  ..._buildTaskIndicators(provider, cellDate),
-                                  const Spacer(),
-                                ],
-                              ),
-                            ),
+                          child: _DayCell(
+                            date: cellDate,
+                            isToday: isToday,
+                            isSelected: isSelected,
+                            dayNum: dayNum,
+                            provider: provider,
                           ),
                         );
                       }),
@@ -296,91 +250,12 @@ class MonthView extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildTaskIndicators(
-    DayCrafterProvider provider,
-    DateTime date,
-  ) {
-    final tasks = provider.getTasksForDate(date);
-    if (tasks.isEmpty) return [];
-
-    // Group tasks by project to show unique project dots
-    final projectColors = <String>{};
-    for (final task in tasks) {
-      final priority = task['priority'] is int
-          ? task['priority']
-          : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
-
-      // Resolve color logic
-      String colorKey;
-      final projectId = task['projectId']?.toString();
-
-      if (projectId != null) {
-        try {
-          final project = provider.projects.firstWhere(
-            (p) => p.id == projectId,
-            orElse: () => provider.projects.first,
-          );
-          // Use colorHex as key to avoid duplicates
-          colorKey =
-              project.colorHex ??
-              AppStyles.getPriorityColor(priority).value.toRadixString(16);
-        } catch (_) {
-          colorKey = AppStyles.getPriorityColor(
-            priority,
-          ).value.toRadixString(16);
-        }
-      } else {
-        colorKey = AppStyles.getPriorityColor(priority).value.toRadixString(16);
-      }
-      projectColors.add(colorKey);
-    }
-
-    // Limit to 5 dots to prevent horizontal overflow
-    final uniqueColors = projectColors.take(5).toList();
-
-    return [
-      const Spacer(),
-      Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: uniqueColors.map((hexStr) {
-            Color color;
-            try {
-              // Handle # prefix if present
-              final cleanHex = hexStr.replaceAll('#', '');
-              // If length is 6, add FF for opacity, if 8 use as is
-              if (cleanHex.length == 6) {
-                color = Color(int.parse('FF$cleanHex', radix: 16));
-              } else if (cleanHex.length == 8) {
-                color = Color(int.parse(cleanHex, radix: 16));
-              } else {
-                // Fallback
-                color = AppStyles.mPrimary;
-              }
-            } catch (_) {
-              color = AppStyles.mPrimary;
-            }
-
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 1.5),
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            );
-          }).toList(),
-        ),
-      ),
-    ];
-  }
-
   Widget _buildRightPanel(
     BuildContext context,
     DayCrafterProvider provider,
     DateTime selectedDate,
   ) {
     final l10n = AppLocalizations.of(context)!;
-    // Show Today's and Tomorrow's tasks
     final today = DateTime.now();
     final tomorrow = today.add(const Duration(days: 1));
 
@@ -430,6 +305,331 @@ class MonthView extends StatelessWidget {
           compact: true,
         ),
       ],
+    );
+  }
+}
+
+class _DayCell extends StatefulWidget {
+  final DateTime date;
+  final bool isToday;
+  final bool isSelected;
+  final int dayNum;
+  final DayCrafterProvider provider;
+
+  const _DayCell({
+    required this.date,
+    required this.isToday,
+    required this.isSelected,
+    required this.dayNum,
+    required this.provider,
+  });
+
+  @override
+  State<_DayCell> createState() => _DayCellState();
+}
+
+class _DayCellState extends State<_DayCell> {
+  final _link = LayerLink();
+  bool _isHovered = false;
+  OverlayEntry? _overlayEntry;
+
+  void _showTooltip() {
+    final tasks = widget.provider.getTasksForDate(widget.date);
+    if (tasks.isEmpty) return;
+
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: 240,
+        child: IgnorePointer(
+          child: CompositedTransformFollower(
+            link: _link,
+            showWhenUnlinked: false,
+            offset: const Offset(30, -10),
+            child: Material(
+              color: Colors.transparent,
+              child: _TaskHoverTooltip(tasks: tasks, date: widget.date),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _hideTooltip() {
+    if (_overlayEntry != null) {
+      _overlayEntry!.remove();
+      _overlayEntry = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideTooltip();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _link,
+      child: MouseRegion(
+        hitTestBehavior: HitTestBehavior.opaque,
+        onEnter: (_) {
+          Future.microtask(() {
+            if (mounted) {
+              setState(() => _isHovered = true);
+              _showTooltip();
+            }
+          });
+        },
+        onExit: (_) {
+          Future.microtask(() {
+            if (mounted) {
+              setState(() => _isHovered = false);
+              _hideTooltip();
+            }
+          });
+        },
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => widget.provider.setSelectedDate(widget.date),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: widget.isSelected
+                  ? AppStyles.mPrimary.withValues(alpha: 0.15)
+                  : (_isHovered
+                        ? AppStyles.mPrimary.withValues(alpha: 0.05)
+                        : Colors.transparent),
+              borderRadius: AppStyles.bRadiusSmall,
+              border: widget.isToday
+                  ? Border.all(color: AppStyles.mPrimary, width: 2)
+                  : (_isHovered
+                        ? Border.all(
+                            color: AppStyles.mPrimary.withValues(alpha: 0.3),
+                            width: 1,
+                          )
+                        : null),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                const SizedBox(height: 4),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: widget.isSelected
+                        ? AppStyles.mPrimary
+                        : Colors.transparent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.dayNum.toString(),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: widget.isToday || widget.isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: widget.isSelected
+                            ? Colors.white
+                            : (widget.isToday
+                                  ? AppStyles.mPrimary
+                                  : AppStyles.mTextPrimary),
+                      ),
+                    ),
+                  ),
+                ),
+                _buildIndicators(),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIndicators() {
+    final tasks = widget.provider.getTasksForDate(widget.date);
+    if (tasks.isEmpty) return const SizedBox();
+
+    final projectColors = <String>{};
+    for (final task in tasks) {
+      final priority = task['priority'] is int
+          ? task['priority']
+          : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
+
+      String colorKey;
+      final projectId = task['projectId']?.toString();
+
+      if (projectId != null) {
+        try {
+          final project = widget.provider.projects.firstWhere(
+            (p) => p.id == projectId,
+            orElse: () => widget.provider.projects.first,
+          );
+          colorKey =
+              project.colorHex ??
+              AppStyles.getPriorityColor(priority).value.toRadixString(16);
+        } catch (_) {
+          colorKey = AppStyles.getPriorityColor(
+            priority,
+          ).value.toRadixString(16);
+        }
+      } else {
+        colorKey = AppStyles.getPriorityColor(priority).value.toRadixString(16);
+      }
+      projectColors.add(colorKey);
+    }
+
+    final uniqueColors = projectColors.take(5).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: uniqueColors.map((hexStr) {
+          Color color;
+          try {
+            final cleanHex = hexStr.replaceAll('#', '');
+            if (cleanHex.length == 6) {
+              color = Color(int.parse('FF$cleanHex', radix: 16));
+            } else if (cleanHex.length == 8) {
+              color = Color(int.parse(cleanHex, radix: 16));
+            } else {
+              color = AppStyles.mPrimary;
+            }
+          } catch (_) {
+            color = AppStyles.mPrimary;
+          }
+
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1.5),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _TaskHoverTooltip extends StatelessWidget {
+  final List<Map<String, dynamic>> tasks;
+  final DateTime date;
+
+  const _TaskHoverTooltip({required this.tasks, required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateStr = DateFormat('MMMM d, yyyy').format(date);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppStyles.mSurface.withValues(alpha: 0.95),
+        borderRadius: AppStyles.bRadiusSmall,
+        border: Border.all(color: AppStyles.mPrimary.withValues(alpha: 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 15,
+            spreadRadius: 2,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            dateStr,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppStyles.mPrimary,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              itemCount: tasks.length > 5 ? 5 : tasks.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final task = tasks[index];
+                final priority = task['priority'] is int
+                    ? task['priority']
+                    : int.tryParse(task['priority']?.toString() ?? '3') ?? 3;
+                final priorityColor = AppStyles.getPriorityColor(priority);
+                final taskName = task['task']?.toString() ?? 'Untitled';
+                final time = task['start_time']?.toString();
+
+                return Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: priorityColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            taskName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: AppStyles.mTextPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (time != null && time.isNotEmpty)
+                            Text(
+                              time,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppStyles.mTextSecondary,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          if (tasks.length > 5) ...[
+            const SizedBox(height: 8),
+            Text(
+              '+ ${tasks.length - 5} more tasks',
+              style: TextStyle(
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+                color: AppStyles.mTextSecondary,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

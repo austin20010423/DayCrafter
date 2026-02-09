@@ -219,7 +219,7 @@ class _MainLayoutState extends State<MainLayout> {
         onSubmit: (data) => context.read<DayCrafterProvider>().addProject(
           data.name,
           colorHex: data.colorHex,
-          emoji: data.emoji,
+          icon: data.icon,
         ),
       ),
     );

@@ -204,7 +204,11 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     return Center(
       child: Container(
         width: MediaQuery.of(context).size.width * 0.4,
-        constraints: const BoxConstraints(maxWidth: 450, minWidth: 320),
+        constraints: BoxConstraints(
+          maxWidth: 450,
+          minWidth: 320,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
         margin: const EdgeInsets.symmetric(vertical: 40),
         decoration: BoxDecoration(
           color: AppStyles.mSurface,
@@ -750,8 +754,9 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
 
   void _showCreateProjectDialog() {
     final nameController = TextEditingController();
-    // Default color (Blue-Grey)
+
     Color selectedColor = const Color(0xFF7A8D9A);
+    String selectedIcon = 'folder';
 
     showDialog(
       context: context,
@@ -763,67 +768,133 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
               'New Project',
               style: TextStyle(color: AppStyles.mTextPrimary),
             ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    autofocus: true,
-                    style: TextStyle(color: AppStyles.mTextPrimary),
-                    decoration: InputDecoration(
-                      hintText: 'Project Name',
-                      hintStyle: TextStyle(color: AppStyles.mTextSecondary),
-                      filled: true,
-                      fillColor: AppStyles.mBackground,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+            content: SizedBox(
+              width: 400, // Fixed width for dialog stability
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      autofocus: true,
+                      style: TextStyle(color: AppStyles.mTextPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Project Name',
+                        hintStyle: TextStyle(color: AppStyles.mTextSecondary),
+                        filled: true,
+                        fillColor: AppStyles.mBackground,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: AppStyles.mPrimary),
+                        ),
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: AppStyles.mPrimary),
+                      onSubmitted: (_) => _createProject(
+                        ctx,
+                        nameController.text,
+                        '#${selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                        selectedIcon,
                       ),
                     ),
-                    onSubmitted: (_) => _createProject(
-                      ctx,
-                      nameController.text,
-                      '#${selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                    const SizedBox(height: 20),
+                    Text(
+                      'Color',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppStyles.mTextSecondary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Color',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppStyles.mTextSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: SizedBox(
-                      width: 350,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: ColorPicker(
-                          pickerColor: selectedColor,
-                          onColorChanged: (color) {
-                            setState(() {
-                              selectedColor = color;
-                            });
-                          },
-                          labelTypes: const [],
-                          enableAlpha: false,
-                          displayThumbColor: true,
-                          pickerAreaHeightPercent: 0.7,
-                          paletteType: PaletteType.hueWheel,
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Container(
+                        width: 350,
+                        height: 200, // Explicit height for color picker
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: ColorPicker(
+                            pickerColor: selectedColor,
+                            onColorChanged: (color) {
+                              setState(() {
+                                selectedColor = color;
+                              });
+                            },
+                            labelTypes: const [],
+                            enableAlpha: false,
+                            displayThumbColor: true,
+                            pickerAreaHeightPercent: 0.7,
+                            paletteType: PaletteType.hueWheel,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 20),
+                    Text(
+                      'Icon',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 180,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppStyles.mBackground.withValues(alpha: 0.5),
+                        borderRadius: AppStyles.bRadiusSmall,
+                      ),
+                      child: GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 6,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                            ),
+                        itemCount: ProjectIcons.availableIcons.length,
+                        itemBuilder: (context, index) {
+                          final iconName = ProjectIcons.availableIcons[index];
+                          final isSelected = selectedIcon == iconName;
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                selectedIcon = iconName;
+                              });
+                            },
+                            borderRadius: AppStyles.bRadiusSmall,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? selectedColor.withValues(alpha: 0.2)
+                                    : Colors.transparent,
+                                borderRadius: AppStyles.bRadiusSmall,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? selectedColor
+                                      : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                ProjectIcons.getIcon(iconName),
+                                color: isSelected
+                                    ? selectedColor
+                                    : selectedColor.withValues(alpha: 0.5),
+                                size: 18,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -839,6 +910,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                   ctx,
                   nameController.text,
                   '#${selectedColor.toARGB32().toRadixString(16).substring(2).toUpperCase()}',
+                  selectedIcon,
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppStyles.mPrimary,
@@ -860,12 +932,17 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
     BuildContext ctx,
     String name,
     String colorHex,
+    String icon,
   ) async {
     if (name.trim().isEmpty) return;
 
     try {
       final provider = context.read<DayCrafterProvider>();
-      final newProjectId = await provider.addProject(name, colorHex: colorHex);
+      final newProjectId = await provider.addProject(
+        name,
+        colorHex: colorHex,
+        icon: icon,
+      );
 
       if (ctx.mounted) {
         Navigator.pop(ctx); // Close creation dialog
