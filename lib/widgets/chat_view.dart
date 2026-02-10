@@ -1632,19 +1632,20 @@ class _InputActionButtonState extends State<_InputActionButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: AppStyles.bRadiusMedium,
+        borderRadius: AppStyles.bRadiusSmall,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
             color: _isHovered
-                ? AppStyles.mPrimary.withValues(alpha: 0.15)
-                : AppStyles.mBackground.withValues(alpha: 0.4),
-            borderRadius: AppStyles.bRadiusMedium,
+                ? AppStyles.mPrimary.withValues(alpha: 0.2)
+                : AppStyles.mPrimary.withValues(alpha: 0.08),
+            borderRadius: AppStyles.bRadiusSmall,
             border: Border.all(
-              color: _isHovered
-                  ? AppStyles.mPrimary.withValues(alpha: 0.3)
-                  : Colors.transparent,
+              color: AppStyles.mPrimary.withValues(
+                alpha: _isHovered ? 0.4 : 0.2,
+              ),
+              width: 1.5,
             ),
           ),
           child: Row(
@@ -1790,12 +1791,12 @@ class _IconButtonState extends State<_IconButton> {
         : (widget.isPrimary
               ? (widget.enabled
                     ? (canHover && _isHovered
-                          ? AppStyles.mPrimary.withValues(alpha: 0.8)
+                          ? AppStyles.mPrimary.withValues(alpha: 0.9)
                           : AppStyles.mPrimary)
                     : AppStyles.mBackground)
               : (canHover && _isHovered
-                    ? AppStyles.mBackground.withValues(alpha: 0.7)
-                    : AppStyles.mBackground.withValues(alpha: 0.4)));
+                    ? AppStyles.mPrimary.withValues(alpha: 0.15)
+                    : AppStyles.mPrimary.withValues(alpha: 0.08)));
 
     final iconColor = widget.isDanger
         ? Colors.white
@@ -1810,14 +1811,22 @@ class _IconButtonState extends State<_IconButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: InkWell(
         onTap: widget.enabled ? widget.onTap : null,
-        borderRadius: BorderRadius.circular(widget.size / 2),
+        borderRadius: AppStyles.bRadiusSmall,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: widget.size,
           height: widget.size,
           decoration: BoxDecoration(
             color: bgColor,
-            shape: BoxShape.circle,
+            borderRadius: AppStyles.bRadiusSmall,
+            border: !widget.isPrimary && !widget.isDanger
+                ? Border.all(
+                    color: AppStyles.mPrimary.withValues(
+                      alpha: _isHovered ? 0.4 : 0.2,
+                    ),
+                    width: 1.5,
+                  )
+                : null,
             boxShadow: (widget.isDanger || (widget.isPrimary && widget.enabled))
                 ? [
                     BoxShadow(

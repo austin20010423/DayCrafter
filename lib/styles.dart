@@ -1,30 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-/// Theme data for dark Morandi palette
+/// Theme data for dark Warm Slate palette
 class DarkMorandiTheme {
-  static const Color background = Color(0xFF2C3135); // Deep Charcoal
-  static const Color surface = Color(0xFF373D42); // Muted Slate
-  static const Color primary = Color(0xFF8FA3B0); // Soft Blue-Grey
+  static const Color background = Color(0xFF2a3240); // Warm dark slate
+  static const Color surface = Color(0xFF313B4A); // Slightly lighter slate
+  static const Color primary = Color(
+    0xFF6b90b5,
+  ); // Brighter blue for visibility
   static const Color secondary = Color(
-    0xFF9FB5A3,
-  ); // Sage Green (lighter for dark)
-  static const Color accent = Color(0xFFD9BCBB); // Dusty Rose
-  static const Color textPrimary = Color(0xFFE5E2DA); // Pale Sand (inverted)
-  static const Color textSecondary = Color(0xFF9BA3AB); // Soft Slate
-  static const Color sidebarBg = Color(0xFF232729); // Very Dark Slate
+    0xFF6b90b5,
+  ); // Same accent for consistency
+  static const Color accent = Color(0xFF6b90b5); // Brighter blue accent
+  static const Color textPrimary = Color(0xFFe8e6e3); // Warm off-white
+  static const Color textSecondary = Color(0xFFa8a6a3); // Muted warm grey
+  static const Color sidebarBg = Color(0xFF1e2530); // Deep warm charcoal
+  static const Color userMessageBg = Color(0xFF5a7a9a); // Muted blue
+  static const Color aiMessageBg = Color(0xFF3a4555); // Warm medium-dark grey
 }
 
-/// Theme data for light Morandi palette
+/// Theme data for light Warm Slate palette
 class LightMorandiTheme {
-  static const Color background = Color(0xFFE5E2DA); // Pale Sand
-  static const Color surface = Color(0xFFF2F0E9); // Lighter Sand
-  static const Color primary = Color(0xFF7A8D9A); // Deep Muted Blue
-  static const Color secondary = Color(0xFFACB8A8); // Sage Green
-  static const Color accent = Color(0xFFD6BDBC); // Dusty Rose
-  static const Color textPrimary = Color(0xFF5A6268); // Dark Grey Muted
-  static const Color textSecondary = Color(0xFF8E979F); // Muted Slate
-  static const Color sidebarBg = Color(0xFF6B7580); // Darker Muted Grey
+  static const Color background = Color(0xFFf8f7f5); // Warm off-white
+  static const Color surface = Color(0xFFFFFFFF); // White surface
+  static const Color primary = Color(0xFF5b7c99); // Accent color
+  static const Color secondary = Color(0xFF5b7c99); // Same accent
+  static const Color accent = Color(0xFF5b7c99); // Accent color
+  static const Color textPrimary = Color(0xFF3d4855); // Warmer dark slate
+  static const Color textSecondary = Color(0xFF7a8a9a); // Muted slate
+  static const Color sidebarBg = Color(0xFF3d4855); // Warmer dark slate
+  static const Color userMessageBg = Color(0xFF6b8cae); // Softer warmer blue
+  static const Color aiMessageBg = Color(0xFFe8e6e3); // Warm light grey
 }
 
 /// App-wide styles that respond to theme changes
@@ -65,6 +71,14 @@ class AppStyles {
 
   static Color get mSidebarBg =>
       _isDarkMode ? DarkMorandiTheme.sidebarBg : LightMorandiTheme.sidebarBg;
+
+  static Color get mUserMessageBg => _isDarkMode
+      ? DarkMorandiTheme.userMessageBg
+      : LightMorandiTheme.userMessageBg;
+
+  static Color get mAiMessageBg => _isDarkMode
+      ? DarkMorandiTheme.aiMessageBg
+      : LightMorandiTheme.aiMessageBg;
 
   // Priority Colors (same for both themes)
   static const Color priorityHigh = Color(0xFFFF6B6B); // Bright Coral
