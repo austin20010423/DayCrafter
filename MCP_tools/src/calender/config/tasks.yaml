@@ -1,0 +1,30 @@
+execution_task:
+  description: >
+    You are responsible for the entire project planning lifecycle for {topic}.
+    1. Analyze the objective and deconstruct it into specific sub-tasks.
+    2. Conduct research to find relevant external links, books, or data.
+    3. Create a prioritized execution roadmap based on your analysis and research.
+    
+    The roadmap should have 7 items or fewer. Keep task descriptions under 15 words.
+  expected_output: >
+    A prioritized execution plan that ranks tasks from highest to lowest 
+    priority, including brief justifications for the ranking. Please construct 
+    them in json formatted list, below is the example. And remember, I want the task as lower as possible words, maximum 
+    15 words.
+    
+    [
+        {
+            "dateOnCalendar": "date",
+            "DueDate": "date",
+            "start_time": "HH:MM in 24hr format",
+            "end_time": "HH:MM in 24hr format",
+            "task": "task name",
+            "priority": 1,
+            "links": "links",
+            "Description": "description",
+        }, 
+        {...}
+    ]
+    please only output json format, do not output any other entities in the output.
+    no ```json tags, no extra words.
+  agent: calendar_manager

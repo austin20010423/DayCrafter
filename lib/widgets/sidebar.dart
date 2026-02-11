@@ -193,6 +193,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       isCollapsed: !showExpanded,
                       onTap: () => provider.setActiveNavItem(NavItem.calendar),
                     ),
+                    const SizedBox(height: 4),
                     _SidebarItem(
                       label: l10n.agent,
                       icon: LucideIcons.smile,
@@ -206,6 +207,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                         }
                       },
                     ),
+                    const SizedBox(height: 4),
                     _SidebarItem(
                       label: l10n.dashboard,
                       icon: LucideIcons.barChart3,
@@ -487,7 +489,7 @@ class _SidebarItemState extends State<_SidebarItem> {
       onExit: (_) => setState(() => _isHovered = false),
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: AppStyles.bRadiusMedium,
+        borderRadius: AppStyles.bRadiusSmall,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: EdgeInsets.symmetric(
@@ -500,7 +502,7 @@ class _SidebarItemState extends State<_SidebarItem> {
                 : (_isHovered
                       ? Colors.white.withValues(alpha: 0.1)
                       : Colors.transparent),
-            borderRadius: AppStyles.bRadiusMedium,
+            borderRadius: AppStyles.bRadiusSmall,
           ),
           child: widget.isCollapsed
               ? Center(
@@ -632,6 +634,15 @@ class _ProjectItemState extends State<_ProjectItem> {
                         )
                       : Colors.transparent,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(
+                      alpha: _isHovered ? 0.25 : 0.15,
+                    ),
+                    blurRadius: _isHovered ? 12 : 8,
+                    offset: Offset(0, _isHovered ? 4 : 2),
+                  ),
+                ],
               ),
               child: Center(
                 child: Stack(
@@ -693,6 +704,13 @@ class _ProjectItemState extends State<_ProjectItem> {
               ),
               width: widget.isActive ? 2 : 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: _isHovered ? 0.25 : 0.15),
+                blurRadius: _isHovered ? 12 : 8,
+                offset: Offset(0, _isHovered ? 4 : 2),
+              ),
+            ],
           ),
           child: Row(
             children: [

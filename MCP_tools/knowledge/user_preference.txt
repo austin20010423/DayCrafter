@@ -1,0 +1,20 @@
+# User Preferences for Calendar Agent
+
+# WORK HOURS
+- Work Start Time: 09:00
+- Work End Time: 18:00
+- Lunch Break: 12:00 - 13:00
+
+# SCHEDULING RULES
+- Default Task Duration: 60 minutes
+- Buffer Between Tasks: 10 minutes
+- Keep Friday afternoons free for review/planning if possible.
+
+# PRIORITIES
+- Deep Work (coding, writing) -> Morning (09:00 - 12:00)
+- Meetings/Calls -> Afternoon (14:00 - 17:00)
+- Urgent tasks take precedence over focus blocks.
+
+# GENERAL
+- Do not schedule tasks on weekends unless explicitly requested.
+- Group similar tasks together (e.g., all emails in one block).

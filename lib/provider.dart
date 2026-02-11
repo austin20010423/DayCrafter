@@ -1565,13 +1565,14 @@ Always provide sources when you search the web.''';
                     debugPrint('Error parsing tool arguments: $e');
                   }
 
-                  if (topic != null && _isApiAvailable) {
-                    // Initialize MCP client if not already initialized
-                    if (_mcpClient == null) {
+                  if (topic != null) {
+                    // Initialize MCP client if needed (or reset if previous connection broke)
+                    if (_mcpClient == null || !_isApiAvailable) {
+                      disposeMcpClient();
                       await _initMcpClient();
                     }
 
-                    if (_mcpClient == null) {
+                    if (_mcpClient == null || !_isApiAvailable) {
                       aiText +=
                           '\n\n*Error: Task planning service unavailable.*\n';
                       notifyListeners();
@@ -1704,6 +1705,297 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
                       aiText += '\n\n*Error executing plan: $e*';
                       notifyListeners();
                     }
+                  }
+                } else if (name == 'check_gmail' && callId != null) {
+                  // Parse optional arguments
+                  String gmailQuery = 'is:inbox';
+                  int maxResults = 10;
+                  if (arguments != null) {
+                    try {
+                      final argsJson = jsonDecode(arguments);
+                      gmailQuery = argsJson['query'] as String? ?? 'is:inbox';
+                      maxResults = argsJson['max_results'] as int? ?? 10;
+                    } catch (e) {
+                      debugPrint('Error parsing check_gmail arguments: $e');
+                    }
+                  }
+
+                  // Show loading message
+                  aiText = '*📧 Checking your Gmail...*';
+                  if (_activeProjectId != null) {
+                    final projectIndex = _projects.indexWhere(
+                      (p) => p.id == _activeProjectId,
+                    );
+                    if (projectIndex != -1) {
+                      final currentMessages = List<Message>.from(
+                        _projects[projectIndex].messages,
+                      );
+                      final msgIndex = currentMessages.indexWhere(
+                        (m) => m.id == assistantMessageId,
+                      );
+                      if (msgIndex != -1) {
+                        currentMessages[msgIndex] = currentMessages[msgIndex]
+                            .copyWith(text: aiText);
+                        _projects[projectIndex] = _projects[projectIndex]
+                            .copyWith(messages: currentMessages);
+                        notifyListeners();
+                      }
+                    }
+                  }
+
+                  // Initialize MCP client if needed (or reset if previous connection broke)
+                  if (_mcpClient == null || !_isApiAvailable) {
+                    // Force cleanup of any stale connection
+                    disposeMcpClient();
+                    await _initMcpClient();
+                  }
+
+                  if (_mcpClient == null || !_isApiAvailable) {
+                    aiText =
+                        '❌ *Email service unavailable. Please ensure the backend is running.*';
+                    notifyListeners();
+                    continue;
+                  }
+
+                  if (_cancelledRequests.contains(requestId)) {
+                    return;
+                  }
+
+                  try {
+                    final result = await _mcpClient!.callTool(
+                      CallToolRequest(
+                        name: 'check_gmail',
+                        arguments: {
+                          'query': gmailQuery,
+                          'max_results': maxResults,
+                        },
+                      ),
+                    );
+
+                    if (_cancelledRequests.contains(requestId)) {
+                      return;
+                    }
+
+                    // Parse the MCP result
+                    final content = result.content;
+                    String toolOutput = '';
+                    if (content.isNotEmpty) {
+                      final dynamic first = content.first;
+                      try {
+                        toolOutput = first.text;
+                      } catch (_) {
+                        toolOutput = first.toString();
+                      }
+                    }
+
+                    // Send the tool output back to the AI for natural language summarization
+                    // Use the responseId tracked from the outer streaming scope
+
+                    final summaryBody = jsonEncode({
+                      'model': 'gpt-4.1-mini',
+                      'stream': true,
+                      'input': [
+                        {
+                          'type': 'function_call_output',
+                          'call_id': callId,
+                          'output': toolOutput,
+                        },
+                      ],
+                      if (responseId.isNotEmpty)
+                        'previous_response_id': responseId,
+                      'instructions':
+                          'Summarize the email results in a friendly, concise way. Highlight unread emails and important subjects. Use markdown formatting with emojis. Keep it brief and readable.',
+                    });
+
+                    final summaryRequest = http.Request(
+                      'POST',
+                      Uri.parse('https://api.openai.com/v1/responses'),
+                    );
+                    summaryRequest.headers.addAll({
+                      'Authorization': 'Bearer $apiKey',
+                      'Content-Type': 'application/json',
+                    });
+                    summaryRequest.body = summaryBody;
+
+                    final summaryStreamResponse = await http.Client().send(
+                      summaryRequest,
+                    );
+
+                    aiText = '';
+                    notifyListeners();
+
+                    await for (final chunk
+                        in summaryStreamResponse.stream
+                            .transform(utf8.decoder)
+                            .transform(const LineSplitter())) {
+                      if (_cancelledRequests.contains(requestId)) {
+                        return;
+                      }
+
+                      if (chunk.startsWith('data: ')) {
+                        final jsonStr = chunk.substring(6).trim();
+                        if (jsonStr.isEmpty || jsonStr == '[DONE]') continue;
+                        try {
+                          final summaryEvent =
+                              jsonDecode(jsonStr) as Map<String, dynamic>;
+                          final summaryType =
+                              summaryEvent['type'] as String? ?? '';
+
+                          if (summaryType == 'response.output_text.delta') {
+                            final delta =
+                                summaryEvent['delta'] as String? ?? '';
+                            aiText += delta;
+
+                            // Update message in project
+                            if (_activeProjectId != null) {
+                              final projectIndex = _projects.indexWhere(
+                                (p) => p.id == _activeProjectId,
+                              );
+                              if (projectIndex != -1) {
+                                final currentMessages = List<Message>.from(
+                                  _projects[projectIndex].messages,
+                                );
+                                final msgIndex = currentMessages.indexWhere(
+                                  (m) => m.id == assistantMessageId,
+                                );
+                                if (msgIndex != -1) {
+                                  currentMessages[msgIndex] =
+                                      currentMessages[msgIndex].copyWith(
+                                        text: aiText,
+                                      );
+                                  _projects[projectIndex] =
+                                      _projects[projectIndex].copyWith(
+                                        messages: currentMessages,
+                                      );
+                                  notifyListeners();
+                                }
+                              }
+                            }
+                          }
+                        } catch (_) {}
+                      }
+                    }
+
+                    // Final update
+                    if (_activeProjectId != null) {
+                      final projectIndex = _projects.indexWhere(
+                        (p) => p.id == _activeProjectId,
+                      );
+                      if (projectIndex != -1) {
+                        final currentMessages = List<Message>.from(
+                          _projects[projectIndex].messages,
+                        );
+                        final msgIndex = currentMessages.indexWhere(
+                          (m) => m.id == assistantMessageId,
+                        );
+                        if (msgIndex != -1) {
+                          currentMessages[msgIndex] = currentMessages[msgIndex]
+                              .copyWith(text: aiText);
+                          _projects[projectIndex] = _projects[projectIndex]
+                              .copyWith(messages: currentMessages);
+                        }
+                      }
+                    }
+
+                    notifyListeners();
+                  } catch (e) {
+                    debugPrint('Gmail MCP Tool Error: $e');
+                    aiText = '❌ *Error checking Gmail: $e*';
+                    notifyListeners();
+                  }
+                } else if (name == 'switch_gmail_account' && callId != null) {
+                  // Show loading message
+                  aiText = '*🔄 Switching Gmail account...*';
+                  if (_activeProjectId != null) {
+                    final projectIndex = _projects.indexWhere(
+                      (p) => p.id == _activeProjectId,
+                    );
+                    if (projectIndex != -1) {
+                      final currentMessages = List<Message>.from(
+                        _projects[projectIndex].messages,
+                      );
+                      final msgIndex = currentMessages.indexWhere(
+                        (m) => m.id == assistantMessageId,
+                      );
+                      if (msgIndex != -1) {
+                        currentMessages[msgIndex] = currentMessages[msgIndex]
+                            .copyWith(text: aiText);
+                        _projects[projectIndex] = _projects[projectIndex]
+                            .copyWith(messages: currentMessages);
+                        notifyListeners();
+                      }
+                    }
+                  }
+
+                  // Initialize MCP client if needed
+                  if (_mcpClient == null || !_isApiAvailable) {
+                    disposeMcpClient();
+                    await _initMcpClient();
+                  }
+
+                  if (_mcpClient == null || !_isApiAvailable) {
+                    aiText =
+                        '❌ *Service unavailable. Please ensure the backend is running.*';
+                    notifyListeners();
+                    continue;
+                  }
+
+                  try {
+                    final result = await _mcpClient!.callTool(
+                      CallToolRequest(
+                        name: 'switch_gmail_account',
+                        arguments: {},
+                      ),
+                    );
+
+                    final content = result.content;
+                    String toolOutput = '';
+                    if (content.isNotEmpty) {
+                      final dynamic first = content.first;
+                      try {
+                        toolOutput = first.text;
+                      } catch (_) {
+                        toolOutput = first.toString();
+                      }
+                    }
+
+                    try {
+                      final data = jsonDecode(toolOutput);
+                      if (data['error'] != null) {
+                        aiText = '❌ ${data['error']}';
+                      } else {
+                        aiText =
+                            '✅ **Gmail 帳號已登出！**\n\n下次查看 email 時，會自動開啟 Google 登入頁面讓你選擇新帳號。\n\n你可以直接說「**查看我的 email**」來登入新帳號。';
+                      }
+                    } catch (_) {
+                      aiText = '✅ Gmail 帳號已切換，下次查看 email 會重新登入。';
+                    }
+
+                    // Update message
+                    if (_activeProjectId != null) {
+                      final projectIndex = _projects.indexWhere(
+                        (p) => p.id == _activeProjectId,
+                      );
+                      if (projectIndex != -1) {
+                        final currentMessages = List<Message>.from(
+                          _projects[projectIndex].messages,
+                        );
+                        final msgIndex = currentMessages.indexWhere(
+                          (m) => m.id == assistantMessageId,
+                        );
+                        if (msgIndex != -1) {
+                          currentMessages[msgIndex] = currentMessages[msgIndex]
+                              .copyWith(text: aiText);
+                          _projects[projectIndex] = _projects[projectIndex]
+                              .copyWith(messages: currentMessages);
+                        }
+                      }
+                    }
+                    notifyListeners();
+                  } catch (e) {
+                    debugPrint('Switch Gmail Error: $e');
+                    aiText = '❌ *切換 Gmail 帳號失敗: $e*';
+                    notifyListeners();
                   }
                 }
               } else if (type == 'response.error') {
@@ -1932,7 +2224,7 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       debugPrint('🔌 Initializing MCP Client connection...');
 
       // Path to python server script
-      String serverPath = '../CrewAI-Driven-Calendar/mcp_server.py';
+      String serverPath = 'MCP_tools/mcp_server.py';
 
       // Check for virtual environment
       String pythonCommand = 'python3';
@@ -1973,6 +2265,10 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       _isApiAvailable = true;
     } catch (e) {
       debugPrint('❌ Failed to initialize MCP client: $e');
+      // Clean up broken state so next attempt retries from scratch
+      _mcpProcess?.kill();
+      _mcpProcess = null;
+      _mcpClient = null;
       _isApiAvailable = false;
     }
   }

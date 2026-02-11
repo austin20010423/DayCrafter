@@ -46,3 +46,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# MCP Tools - sensitive files
+MCP_tools/credentials.json
+MCP_tools/token.json
+MCP_tools/.venv/
+MCP_tools/__pycache__/
+MCP_tools/result/
+MCP_tools/uv.lock

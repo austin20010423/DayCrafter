@@ -22,7 +22,8 @@ class ChatView extends StatefulWidget {
 
 enum ViewMode { defaultMode, upload, recording }
 
-class _ChatViewState extends State<ChatView> {
+class _ChatViewState extends State<ChatView>
+    with SingleTickerProviderStateMixin {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
   ViewMode _viewMode = ViewMode.defaultMode;
@@ -33,6 +34,12 @@ class _ChatViewState extends State<ChatView> {
   Timer? _timer;
   bool _isInputHovered = false;
 
+  // Breathing glow animation
+  AnimationController? _glowController;
+  Animation<double>? _glowAnimation;
+  final FocusNode _inputFocusNode = FocusNode();
+  bool _isInputFocused = false;
+
   // Sidebar state
   bool _isSidebarOpen = false;
   List<Map<String, dynamic>>? _sidebarTasks;
@@ -41,11 +48,45 @@ class _ChatViewState extends State<ChatView> {
   @override
   void initState() {
     super.initState();
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+    if (_glowController != null) {
+      _glowAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(parent: _glowController!, curve: Curves.easeInOut),
+      );
+    }
+    _inputFocusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    final focused = _inputFocusNode.hasFocus;
+    if (focused != _isInputFocused) {
+      setState(() => _isInputFocused = focused);
+      _updateGlowAnimation();
+    }
+  }
+
+  void _updateGlowAnimation() {
+    if (_glowController == null) return;
+    if (_isInputHovered || _isInputFocused) {
+      _glowController!.repeat(reverse: true);
+    } else {
+      _glowController!.stop();
+      _glowController!.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 400),
+      );
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _glowController?.dispose();
+    _inputFocusNode.removeListener(_onFocusChange);
+    _inputFocusNode.dispose();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -1321,127 +1362,153 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Widget _buildInputBox(bool isInitial) {
+    final bool glowActive = _isInputHovered || _isInputFocused;
     return MouseRegion(
-      onEnter: (_) => setState(() => _isInputHovered = true),
-      onExit: (_) => setState(() => _isInputHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppStyles.mSurface,
-          borderRadius: AppStyles.bRadiusLarge,
-          border: Border.all(
-            color: _isInputHovered
-                ? AppStyles.mPrimary.withValues(alpha: 0.8)
-                : AppStyles.mPrimary.withValues(alpha: 0.25),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(
-                alpha: _isInputHovered ? 0.22 : 0.15,
+      onEnter: (_) {
+        setState(() => _isInputHovered = true);
+        _updateGlowAnimation();
+      },
+      onExit: (_) {
+        setState(() => _isInputHovered = false);
+        _updateGlowAnimation();
+      },
+      child: AnimatedBuilder(
+        animation: _glowAnimation ?? kAlwaysDismissedAnimation,
+        builder: (context, child) {
+          final double glowValue = _glowAnimation?.value ?? 0.0;
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppStyles.mSurface,
+              borderRadius: AppStyles.bRadiusLarge,
+              border: Border.all(
+                color: glowActive
+                    ? AppStyles.mPrimary.withValues(
+                        alpha: 0.4 + 0.4 * glowValue,
+                      )
+                    : AppStyles.mPrimary.withValues(alpha: 0.25),
+                width: glowActive ? 2.0 + 0.5 * glowValue : 2.0,
               ),
-              blurRadius: _isInputHovered ? 60 : 40,
-              offset: Offset(0, _isInputHovered ? 25 : 15),
-            ),
-          ],
-        ),
-        child: _viewMode == ViewMode.recording
-            ? _buildRecordingControls()
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // File chip area (Gemini style) - appears above input
-                  if (_attachedFile != null)
-                    _GeminiFileChip(
-                      fileName: _attachedFile!,
-                      fileType: _attachedFileType ?? 'text',
-                      onRemove: () => setState(() {
-                        _attachedFile = null;
-                        _attachedFilePath = null;
-                        _attachedFileType = null;
-                      }),
-                    ),
-                  TextField(
-                    controller: _inputController,
-                    maxLines: isInitial
-                        ? 3
-                        : 6, // Increased for more visible text
-                    minLines: 3, // Always show at least 3 lines
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: AppStyles.mTextPrimary,
-                    ),
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _handleSubmit(),
-                    onChanged: (_) =>
-                        setState(() {}), // Update button state on text change
-                    decoration: InputDecoration(
-                      hintText: 'How can I help you?',
-                      hintStyle: TextStyle(
-                        color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
-                      ),
-                      border: InputBorder.none,
-                    ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(
+                    alpha: glowActive ? 0.22 : 0.15,
                   ),
-                  const SizedBox(height: 12), // Reduced spacing
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  blurRadius: glowActive ? 60 : 40,
+                  offset: Offset(0, glowActive ? 25 : 15),
+                ),
+                if (glowActive)
+                  BoxShadow(
+                    color: AppStyles.mPrimary.withValues(
+                      alpha: 0.15 + 0.2 * glowValue,
+                    ),
+                    blurRadius: 20 + 15 * glowValue,
+                    spreadRadius: 1 + 3 * glowValue,
+                  ),
+              ],
+            ),
+            child: _viewMode == ViewMode.recording
+                ? _buildRecordingControls()
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          _InputActionButton(
-                            icon: LucideIcons.paperclip,
-                            label: 'Attach',
-                            onTap: _showUploadPopup,
+                      // File chip area (Gemini style) - appears above input
+                      if (_attachedFile != null)
+                        _GeminiFileChip(
+                          fileName: _attachedFile!,
+                          fileType: _attachedFileType ?? 'text',
+                          onRemove: () => setState(() {
+                            _attachedFile = null;
+                            _attachedFilePath = null;
+                            _attachedFileType = null;
+                          }),
+                        ),
+                      TextField(
+                        controller: _inputController,
+                        focusNode: _inputFocusNode,
+                        maxLines: isInitial
+                            ? 3
+                            : 6, // Increased for more visible text
+                        minLines: 3, // Always show at least 3 lines
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: AppStyles.mTextPrimary,
+                        ),
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _handleSubmit(),
+                        onChanged: (_) => setState(
+                          () {},
+                        ), // Update button state on text change
+                        decoration: InputDecoration(
+                          hintText: 'How can I help you?',
+                          hintStyle: TextStyle(
+                            color: AppStyles.mTextSecondary.withValues(
+                              alpha: 0.5,
+                            ),
                           ),
-                          if (_attachedFile != null) ...[
-                            // Old position removed
-                          ],
-                        ],
+                          border: InputBorder.none,
+                        ),
                       ),
+                      const SizedBox(height: 12), // Reduced spacing
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          _IconButton(
-                            icon: LucideIcons.mic,
-                            onTap: _startRecording,
-                            size: 44,
+                          Row(
+                            children: [
+                              _InputActionButton(
+                                icon: LucideIcons.paperclip,
+                                label: 'Attach',
+                                onTap: _showUploadPopup,
+                              ),
+                              if (_attachedFile != null) ...[
+                                // Old position removed
+                              ],
+                            ],
                           ),
-                          const SizedBox(width: 12),
-                          Builder(
-                            builder: (context) {
-                              final provider = context
-                                  .watch<DayCrafterProvider>();
-                              if (provider.isLoading) {
-                                return _IconButton(
-                                  icon: LucideIcons.x,
-                                  onTap: () => context
-                                      .read<DayCrafterProvider>()
-                                      .cancelCurrentRequest(),
-                                  isDanger: true,
-                                  size: 44,
-                                  enabled: true,
-                                );
-                              }
-                              return _IconButton(
-                                icon: LucideIcons.send,
-                                onTap: _handleSubmit,
-                                isPrimary: true,
+                          Row(
+                            children: [
+                              _IconButton(
+                                icon: LucideIcons.mic,
+                                onTap: _startRecording,
                                 size: 44,
-                                enabled:
-                                    _inputController.text.isNotEmpty ||
-                                    _attachedFile != null,
-                              );
-                            },
+                              ),
+                              const SizedBox(width: 12),
+                              Builder(
+                                builder: (context) {
+                                  final provider = context
+                                      .watch<DayCrafterProvider>();
+                                  if (provider.isLoading) {
+                                    return _IconButton(
+                                      icon: LucideIcons.x,
+                                      onTap: () => context
+                                          .read<DayCrafterProvider>()
+                                          .cancelCurrentRequest(),
+                                      isDanger: true,
+                                      size: 44,
+                                      enabled: true,
+                                    );
+                                  }
+                                  return _IconButton(
+                                    icon: LucideIcons.send,
+                                    onTap: _handleSubmit,
+                                    isPrimary: true,
+                                    size: 44,
+                                    enabled:
+                                        _inputController.text.isNotEmpty ||
+                                        _attachedFile != null,
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ],
                   ),
-                ],
-              ),
-      ),
-    );
+          ); // Container
+        }, // builder
+      ), // AnimatedBuilder
+    ); // MouseRegion
   }
 
   Widget _buildRecordingControls() {

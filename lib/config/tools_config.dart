@@ -50,4 +50,32 @@ final List<Map<String, dynamic>> aiTools = [
       'required': ['topic'],
     },
   },
+  {
+    'type': 'function',
+    'name': 'check_gmail',
+    'description':
+        'Check the user\'s Gmail inbox and return recent emails. Use this when the user wants to check, read, or search their email.',
+    'parameters': {
+      'type': 'object',
+      'properties': {
+        'query': {
+          'type': 'string',
+          'description':
+              'Gmail search query (e.g. "is:unread", "from:someone@example.com", "is:inbox"). Defaults to "is:inbox".',
+        },
+        'max_results': {
+          'type': 'integer',
+          'description': 'Maximum number of emails to return. Defaults to 10.',
+        },
+      },
+      'required': [],
+    },
+  },
+  {
+    'type': 'function',
+    'name': 'switch_gmail_account',
+    'description':
+        'Switch to a different Gmail account. Use this when the user wants to switch, change, or log out of their current Gmail account.',
+    'parameters': {'type': 'object', 'properties': {}, 'required': []},
+  },
 ];
