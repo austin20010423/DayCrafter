@@ -204,4 +204,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addNewProject => 'Add New Project';
+
+  @override
+  String get suggestionPlanWork => 'Help me plan this week\'s work tasks';
+
+  @override
+  String get suggestionAddEvent => 'Meeting tomorrow at 2pm';
+
+  @override
+  String get suggestionCheckEmail => 'Check my email';
+
+  @override
+  String get suggestionWebSearch => 'What\'s the weather today?';
 }

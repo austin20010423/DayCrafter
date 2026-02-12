@@ -204,4 +204,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get addNewProject => '新增專案';
+
+  @override
+  String get suggestionPlanWork => '幫我規劃這週的工作項目';
+
+  @override
+  String get suggestionAddEvent => '明天下午 2 點開會';
+
+  @override
+  String get suggestionCheckEmail => '查看我的 email';
+
+  @override
+  String get suggestionWebSearch => '今天天氣如何？';
 }

@@ -36,16 +36,24 @@ GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 # Paths for Gmail credentials (relative to this script)
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CREDENTIALS_PATH = os.path.join(_SCRIPT_DIR, 'credentials.json')
-TOKEN_PATH = os.path.join(_SCRIPT_DIR, 'token.json')
+_TOKENS_DIR = os.path.join(_SCRIPT_DIR, 'tokens')
 
 
-def _get_gmail_service():
-    """Authenticate and return a Gmail API service instance."""
+def _get_token_path(user_id: str) -> str:
+    """Return the token file path for a specific app user."""
+    os.makedirs(_TOKENS_DIR, exist_ok=True)
+    safe_id = user_id.replace('@', '_at_').replace('.', '_')
+    return os.path.join(_TOKENS_DIR, f'token_{safe_id}.json')
+
+
+def _get_gmail_service(user_id: str = "default"):
+    """Authenticate and return a Gmail API service instance for a specific app user."""
+    token_path = _get_token_path(user_id)
     creds = None
 
     # Load existing token
-    if os.path.exists(TOKEN_PATH):
-        creds = Credentials.from_authorized_user_file(TOKEN_PATH, GMAIL_SCOPES)
+    if os.path.exists(token_path):
+        creds = Credentials.from_authorized_user_file(token_path, GMAIL_SCOPES)
 
     # Refresh or re-authenticate
     if not creds or not creds.valid:
@@ -61,7 +69,7 @@ def _get_gmail_service():
             creds = flow.run_local_server(port=0)
 
         # Save token for future use
-        with open(TOKEN_PATH, 'w') as token_file:
+        with open(token_path, 'w') as token_file:
             token_file.write(creds.to_json())
 
     return build('gmail', 'v1', credentials=creds)
@@ -91,7 +99,7 @@ def task_and_schedule_planer(topic: str) -> str:
 
 
 @mcp.tool()
-def check_gmail(query: str = "is:inbox", max_results: int = 10) -> str:
+def check_gmail(query: str = "is:inbox", max_results: int = 10, user_id: str = "default") -> str:
     """
     Check Gmail inbox and return recent emails.
     Use this when the user wants to check, read, or search their email.
@@ -99,11 +107,12 @@ def check_gmail(query: str = "is:inbox", max_results: int = 10) -> str:
     Args:
         query: Gmail search query (e.g. 'is:unread', 'from:someone@example.com', 'is:inbox'). Defaults to 'is:inbox'.
         max_results: Maximum number of emails to return. Defaults to 10.
+        user_id: The app user identifier to isolate Gmail tokens per account.
     """
-    logger.info(f"Executing check_gmail with query='{query}', max_results={max_results}")
+    logger.info(f"Executing check_gmail for user='{user_id}' with query='{query}', max_results={max_results}")
 
     try:
-        service = _get_gmail_service()
+        service = _get_gmail_service(user_id)
 
         # List messages matching the query
         results = service.users().messages().list(
@@ -154,17 +163,21 @@ def check_gmail(query: str = "is:inbox", max_results: int = 10) -> str:
 
 
 @mcp.tool()
-def switch_gmail_account() -> str:
+def switch_gmail_account(user_id: str = "default") -> str:
     """
     Switch to a different Gmail account by clearing the saved authentication.
     Use this when the user wants to switch, change, or log out of their current Gmail account.
     After calling this, the next check_gmail call will prompt for a new Google login.
+
+    Args:
+        user_id: The app user identifier whose Gmail token should be cleared.
     """
-    logger.info("Executing switch_gmail_account - clearing saved token")
+    logger.info(f"Executing switch_gmail_account for user='{user_id}' - clearing saved token")
 
     try:
-        if os.path.exists(TOKEN_PATH):
-            os.remove(TOKEN_PATH)
+        token_path = _get_token_path(user_id)
+        if os.path.exists(token_path):
+            os.remove(token_path)
             return json.dumps({
                 "status": "success",
                 "message": "Gmail account disconnected. The next email check will prompt you to log in with a new account."

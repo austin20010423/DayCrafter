@@ -12,6 +12,7 @@ import '../models.dart';
 import '../provider.dart';
 import '../styles.dart';
 import '../services/audio_service.dart';
+import '../l10n/app_localizations.dart';
 
 class ChatView extends StatefulWidget {
   const ChatView({super.key});
@@ -22,8 +23,7 @@ class ChatView extends StatefulWidget {
 
 enum ViewMode { defaultMode, upload, recording }
 
-class _ChatViewState extends State<ChatView>
-    with SingleTickerProviderStateMixin {
+class _ChatViewState extends State<ChatView> with TickerProviderStateMixin {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
   ViewMode _viewMode = ViewMode.defaultMode;
@@ -45,6 +45,11 @@ class _ChatViewState extends State<ChatView>
   List<Map<String, dynamic>>? _sidebarTasks;
   String? _sidebarMessageId; // Track which message the tasks belong to
 
+  // Suggestion bubble staggered animation
+  AnimationController? _suggestionController;
+  final List<Animation<double>> _suggestionAnimations = [];
+  String? _lastAnimatedProjectId;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +63,23 @@ class _ChatViewState extends State<ChatView>
       );
     }
     _inputFocusNode.addListener(_onFocusChange);
+
+    // Setup suggestion bubble staggered animation
+    _suggestionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    const bubbleCount = 4;
+    for (int i = 0; i < bubbleCount; i++) {
+      final start = i * 0.18;
+      final end = (start + 0.4).clamp(0.0, 1.0);
+      _suggestionAnimations.add(
+        CurvedAnimation(
+          parent: _suggestionController!,
+          curve: Interval(start, end, curve: Curves.easeOutCubic),
+        ),
+      );
+    }
   }
 
   void _onFocusChange() {
@@ -85,6 +107,7 @@ class _ChatViewState extends State<ChatView>
   void dispose() {
     _timer?.cancel();
     _glowController?.dispose();
+    _suggestionController?.dispose();
     _inputFocusNode.removeListener(_onFocusChange);
     _inputFocusNode.dispose();
     _inputController.dispose();
@@ -612,6 +635,27 @@ class _ChatViewState extends State<ChatView>
     bool isLoading,
   ) {
     if (isInitialState) {
+      // Trigger staggered animation for suggestion bubbles
+      // Re-initialize animations if needed (e.g., after hot reload)
+      if (_suggestionAnimations.isEmpty && _suggestionController != null) {
+        const bubbleCount = 4;
+        for (int i = 0; i < bubbleCount; i++) {
+          final start = i * 0.18;
+          final end = (start + 0.4).clamp(0.0, 1.0);
+          _suggestionAnimations.add(
+            CurvedAnimation(
+              parent: _suggestionController!,
+              curve: Interval(start, end, curve: Curves.easeOutCubic),
+            ),
+          );
+        }
+      }
+      final projectId = project.id;
+      if (_lastAnimatedProjectId != projectId) {
+        _lastAnimatedProjectId = projectId;
+        _suggestionController?.reset();
+        _suggestionController?.forward();
+      }
       return Center(
         child: SingleChildScrollView(
           child: Padding(
@@ -638,7 +682,47 @@ class _ChatViewState extends State<ChatView>
                     letterSpacing: -2,
                   ),
                 ),
-                const SizedBox(height: 64),
+                const SizedBox(height: 40),
+                // Suggestion bubbles
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _buildSuggestionBubble(
+                      context,
+                      LucideIcons.listChecks,
+                      AppLocalizations.of(context)!.suggestionPlanWork,
+                      _suggestionAnimations.length > 0
+                          ? _suggestionAnimations[0]
+                          : null,
+                    ),
+                    _buildSuggestionBubble(
+                      context,
+                      LucideIcons.calendarPlus,
+                      AppLocalizations.of(context)!.suggestionAddEvent,
+                      _suggestionAnimations.length > 1
+                          ? _suggestionAnimations[1]
+                          : null,
+                    ),
+                    _buildSuggestionBubble(
+                      context,
+                      LucideIcons.mail,
+                      AppLocalizations.of(context)!.suggestionCheckEmail,
+                      _suggestionAnimations.length > 2
+                          ? _suggestionAnimations[2]
+                          : null,
+                    ),
+                    _buildSuggestionBubble(
+                      context,
+                      LucideIcons.globe,
+                      AppLocalizations.of(context)!.suggestionWebSearch,
+                      _suggestionAnimations.length > 3
+                          ? _suggestionAnimations[3]
+                          : null,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 40),
                 _buildInputBox(true),
               ],
             ),
@@ -688,6 +772,83 @@ class _ChatViewState extends State<ChatView>
         ),
       ],
     );
+  }
+
+  Widget _buildSuggestionBubble(
+    BuildContext context,
+    IconData icon,
+    String text,
+    Animation<double>? animation,
+  ) {
+    Widget bubble = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          _inputController.text = text;
+          _inputController.selection = TextSelection.fromPosition(
+            TextPosition(offset: text.length),
+          );
+          _inputFocusNode.requestFocus();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppStyles.mSurface,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+              color: AppStyles.mTextSecondary.withValues(alpha: 0.12),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppStyles.mPrimary.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 15, color: AppStyles.mPrimary),
+              const SizedBox(width: 8),
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppStyles.mTextPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (animation != null) {
+      return AnimatedBuilder(
+        animation: animation,
+        builder: (context, child) {
+          return Opacity(
+            opacity: animation.value,
+            child: Transform.translate(
+              offset: Offset(0, 12 * (1 - animation.value)),
+              child: child,
+            ),
+          );
+        },
+        child: bubble,
+      );
+    }
+
+    return bubble;
   }
 
   Widget _buildMessageBubble(Message msg, {bool isStreaming = false}) {

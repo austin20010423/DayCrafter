@@ -65,5 +65,10 @@
   "chooseIcon": "選擇圖示",
   "createProject": "建立專案",
   "projectNameHint": "例如：Q4 行銷活動",
-  "addNewProject": "新增專案"
+  "addNewProject": "新增專案",
+
+  "suggestionPlanWork": "幫我規劃這週的工作項目",
+  "suggestionAddEvent": "明天下午 2 點開會",
+  "suggestionCheckEmail": "查看我的 email",
+  "suggestionWebSearch": "今天天氣如何？"
 }

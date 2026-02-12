@@ -1768,6 +1768,7 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
                         arguments: {
                           'query': gmailQuery,
                           'max_results': maxResults,
+                          'user_id': _currentUserEmail ?? 'default',
                         },
                       ),
                     );
@@ -1944,7 +1945,7 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
                     final result = await _mcpClient!.callTool(
                       CallToolRequest(
                         name: 'switch_gmail_account',
-                        arguments: {},
+                        arguments: {'user_id': _currentUserEmail ?? 'default'},
                       ),
                     );
 

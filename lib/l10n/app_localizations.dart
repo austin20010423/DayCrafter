@@ -487,6 +487,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add New Project'**
   String get addNewProject;
+
+  /// Suggestion bubble for task planning
+  ///
+  /// In en, this message translates to:
+  /// **'Help me plan this week\'s work tasks'**
+  String get suggestionPlanWork;
+
+  /// Suggestion bubble for adding calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'Meeting tomorrow at 2pm'**
+  String get suggestionAddEvent;
+
+  /// Suggestion bubble for Gmail
+  ///
+  /// In en, this message translates to:
+  /// **'Check my email'**
+  String get suggestionCheckEmail;
+
+  /// Suggestion bubble for web search
+  ///
+  /// In en, this message translates to:
+  /// **'What\'s the weather today?'**
+  String get suggestionWebSearch;
 }
 
 class _AppLocalizationsDelegate

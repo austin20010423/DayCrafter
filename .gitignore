@@ -50,6 +50,7 @@ app.*.map.json
 # MCP Tools - sensitive files
 MCP_tools/credentials.json
 MCP_tools/token.json
+MCP_tools/tokens/
 MCP_tools/.venv/
 MCP_tools/__pycache__/
 MCP_tools/result/

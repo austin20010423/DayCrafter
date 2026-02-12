@@ -194,5 +194,17 @@
   "@projectNameHint": {"description": "Project name hint"},
 
   "addNewProject": "Add New Project",
-  "@addNewProject": {"description": "Button to add a new project"}
+  "@addNewProject": {"description": "Button to add a new project"},
+
+  "suggestionPlanWork": "Help me plan this week's work tasks",
+  "@suggestionPlanWork": {"description": "Suggestion bubble for task planning"},
+
+  "suggestionAddEvent": "Meeting tomorrow at 2pm",
+  "@suggestionAddEvent": {"description": "Suggestion bubble for adding calendar event"},
+
+  "suggestionCheckEmail": "Check my email",
+  "@suggestionCheckEmail": {"description": "Suggestion bubble for Gmail"},
+
+  "suggestionWebSearch": "What's the weather today?",
+  "@suggestionWebSearch": {"description": "Suggestion bubble for web search"}
 }
