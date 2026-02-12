@@ -633,12 +633,36 @@ class DayView extends StatelessWidget {
         ),
         calendarStyle: CalendarStyle(
           todayDecoration: BoxDecoration(
-            color: AppStyles.mSecondary.withValues(alpha: 0.5),
+            color: AppStyles.mToday,
             shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppStyles.mToday.withValues(alpha: 0.3),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           selectedDecoration: BoxDecoration(
             color: AppStyles.mPrimary,
             shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppStyles.mPrimary.withValues(alpha: 0.3),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          todayTextStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+          selectedTextStyle: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
           defaultTextStyle: TextStyle(
             fontSize: 12,
@@ -656,13 +680,13 @@ class DayView extends StatelessWidget {
         daysOfWeekStyle: DaysOfWeekStyle(
           weekdayStyle: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: AppStyles.mTextSecondary,
+            fontWeight: FontWeight.bold,
+            color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
           ),
           weekendStyle: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: AppStyles.mTextSecondary.withValues(alpha: 0.7),
+            fontWeight: FontWeight.bold,
+            color: AppStyles.mTextSecondary.withValues(alpha: 0.4),
           ),
         ),
         rowHeight: 32,

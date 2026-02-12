@@ -11,7 +11,8 @@ class DarkMorandiTheme {
   static const Color secondary = Color(
     0xFF6b90b5,
   ); // Same accent for consistency
-  static const Color accent = Color(0xFF6b90b5); // Brighter blue accent
+  static const Color accent = Color(0xFFC89B7B); // Muted Copper/Terra Cotta
+  static const Color today = Color(0xFFC89B7B); // Color for "Today"
   static const Color textPrimary = Color(0xFFe8e6e3); // Warm off-white
   static const Color textSecondary = Color(0xFFa8a6a3); // Muted warm grey
   static const Color sidebarBg = Color(0xFF1e2530); // Deep warm charcoal
@@ -25,7 +26,8 @@ class LightMorandiTheme {
   static const Color surface = Color(0xFFFFFFFF); // White surface
   static const Color primary = Color(0xFF5b7c99); // Accent color
   static const Color secondary = Color(0xFF5b7c99); // Same accent
-  static const Color accent = Color(0xFF5b7c99); // Accent color
+  static const Color accent = Color(0xFFE2B194); // Sunset Morandi
+  static const Color today = Color(0xFFE2B194); // Color for "Today"
   static const Color textPrimary = Color(0xFF3d4855); // Warmer dark slate
   static const Color textSecondary = Color(0xFF7a8a9a); // Muted slate
   static const Color sidebarBg = Color(0xFF3d4855); // Warmer dark slate
@@ -60,6 +62,9 @@ class AppStyles {
 
   static Color get mAccent =>
       _isDarkMode ? DarkMorandiTheme.accent : LightMorandiTheme.accent;
+
+  static Color get mToday =>
+      _isDarkMode ? DarkMorandiTheme.today : LightMorandiTheme.today;
 
   static Color get mTextPrimary => _isDarkMode
       ? DarkMorandiTheme.textPrimary

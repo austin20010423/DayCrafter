@@ -194,8 +194,8 @@ class MonthView extends StatelessWidget {
                       name,
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppStyles.mTextSecondary,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyles.mTextSecondary.withValues(alpha: 0.5),
                       ),
                     ),
                   ),
@@ -424,22 +424,33 @@ class _DayCellState extends State<_DayCell> {
                   decoration: BoxDecoration(
                     color: widget.isSelected
                         ? AppStyles.mPrimary
-                        : Colors.transparent,
+                        : (widget.isToday
+                              ? AppStyles.mToday
+                              : Colors.transparent),
                     shape: BoxShape.circle,
+                    boxShadow: (widget.isToday || widget.isSelected)
+                        ? [
+                            BoxShadow(
+                              color:
+                                  (widget.isSelected
+                                          ? AppStyles.mPrimary
+                                          : AppStyles.mToday)
+                                      .withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
                   ),
                   child: Center(
                     child: Text(
                       widget.dayNum.toString(),
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: widget.isToday || widget.isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: widget.isSelected
+                        fontWeight: FontWeight.bold,
+                        color: (widget.isSelected || widget.isToday)
                             ? Colors.white
-                            : (widget.isToday
-                                  ? AppStyles.mPrimary
-                                  : AppStyles.mTextPrimary),
+                            : AppStyles.mTextPrimary,
                       ),
                     ),
                   ),

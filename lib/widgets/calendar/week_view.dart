@@ -225,13 +225,17 @@ class WeekView extends StatelessWidget {
                             DateFormat('E', localeString).format(day),
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: isToday
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
                               color: isToday
-                                  ? AppStyles.mPrimary
-                                  : AppStyles.mTextSecondary,
+                                  ? AppStyles.mToday
+                                  : AppStyles.mTextSecondary.withValues(
+                                      alpha: 0.5,
+                                    ),
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Container(
                             width: 32,
                             height: 32,
@@ -239,25 +243,32 @@ class WeekView extends StatelessWidget {
                               color: isSelected
                                   ? AppStyles.mPrimary
                                   : (isToday
-                                        ? AppStyles.mSecondary.withValues(
-                                            alpha: 0.3,
-                                          )
+                                        ? AppStyles.mToday
                                         : Colors.transparent),
                               shape: BoxShape.circle,
+                              boxShadow: (isToday || isSelected)
+                                  ? [
+                                      BoxShadow(
+                                        color:
+                                            (isSelected
+                                                    ? AppStyles.mPrimary
+                                                    : AppStyles.mToday)
+                                                .withValues(alpha: 0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
                             ),
                             child: Center(
                               child: Text(
                                 day.day.toString(),
                                 style: TextStyle(
                                   fontSize: 14,
-                                  fontWeight: isToday
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  color: isSelected
+                                  fontWeight: FontWeight.bold,
+                                  color: (isSelected || isToday)
                                       ? Colors.white
-                                      : (isToday
-                                            ? AppStyles.mPrimary
-                                            : AppStyles.mTextPrimary),
+                                      : AppStyles.mTextPrimary,
                                 ),
                               ),
                             ),

@@ -392,32 +392,44 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 ),
                 child: !showExpanded
                     ? Center(
-                        child: CircleAvatar(
-                          radius: 20,
-                          backgroundColor: AppStyles.mSecondary,
-                          child: Text(
-                            provider.userName?.isNotEmpty == true
-                                ? provider.userName![0].toUpperCase()
-                                : 'U',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: AppStyles.mSecondary,
+                            borderRadius: AppStyles.bRadiusSmall,
+                          ),
+                          child: Center(
+                            child: Text(
+                              provider.userName?.isNotEmpty == true
+                                  ? provider.userName![0].toUpperCase()
+                                  : 'U',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
                       )
                     : Row(
                         children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: AppStyles.mSecondary,
-                            child: Text(
-                              provider.userName?.isNotEmpty == true
-                                  ? provider.userName![0].toUpperCase()
-                                  : 'U',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppStyles.mSecondary,
+                              borderRadius: AppStyles.bRadiusSmall,
+                            ),
+                            child: Center(
+                              child: Text(
+                                provider.userName?.isNotEmpty == true
+                                    ? provider.userName![0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ),
@@ -428,26 +440,14 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                               children: [
                                 Text(
                                   provider.userName ?? 'User',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                     fontSize: 15,
                                   ),
                                 ),
-                                Text(
-                                  l10n.personalPlan,
-                                  style: TextStyle(
-                                    color: AppStyles.mTextSecondary,
-                                    fontSize: 12,
-                                  ),
-                                ),
                               ],
                             ),
-                          ),
-                          const Icon(
-                            LucideIcons.moreVertical,
-                            size: 18,
-                            color: Colors.white54,
                           ),
                         ],
                       ),
