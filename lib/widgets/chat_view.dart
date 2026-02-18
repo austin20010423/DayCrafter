@@ -876,62 +876,60 @@ class _ChatViewState extends State<ChatView> with TickerProviderStateMixin {
       // Show "Creating your tasks" animation with bouncing dots
       aiContent = _buildCreatingTasksAnimationContent();
     } else {
-      aiContent = SelectionArea(
-        child: MarkdownBody(
-          data: msg.text,
-          selectable: false,
-          onTapLink: (text, href, title) async {
-            if (href != null) {
-              final uri = Uri.parse(href);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
+      aiContent = MarkdownBody(
+        data: msg.text,
+        selectable: true,
+        onTapLink: (text, href, title) async {
+          if (href != null) {
+            final uri = Uri.parse(href);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
             }
-          },
-          styleSheet: MarkdownStyleSheet(
-            p: TextStyle(
-              color: AppStyles.mTextPrimary,
-              fontSize: 15,
-              height: 1.6,
-            ),
-            a: TextStyle(
-              color: AppStyles.mPrimary,
-              decoration: TextDecoration.underline,
-            ),
-            h1: TextStyle(
-              color: AppStyles.mTextPrimary,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-            h2: TextStyle(
-              color: AppStyles.mTextPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-            h3: TextStyle(
-              color: AppStyles.mTextPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-            strong: TextStyle(
-              color: AppStyles.mTextPrimary,
-              fontWeight: FontWeight.bold,
-            ),
-            em: TextStyle(
-              color: AppStyles.mTextPrimary,
-              fontStyle: FontStyle.italic,
-            ),
-            code: TextStyle(
-              backgroundColor: AppStyles.mBackground,
-              fontFamily: 'monospace',
-              fontSize: 13,
-            ),
-            codeblockDecoration: BoxDecoration(
-              color: AppStyles.mBackground,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            listBullet: TextStyle(color: AppStyles.mTextPrimary),
+          }
+        },
+        styleSheet: MarkdownStyleSheet(
+          p: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 15,
+            height: 1.6,
           ),
+          a: TextStyle(
+            color: AppStyles.mPrimary,
+            decoration: TextDecoration.underline,
+          ),
+          h1: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
+          h2: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          h3: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          strong: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+          em: TextStyle(
+            color: AppStyles.mTextPrimary,
+            fontStyle: FontStyle.italic,
+          ),
+          code: TextStyle(
+            backgroundColor: AppStyles.mBackground,
+            fontFamily: 'monospace',
+            fontSize: 13,
+          ),
+          codeblockDecoration: BoxDecoration(
+            color: AppStyles.mBackground,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          listBullet: TextStyle(color: AppStyles.mTextPrimary),
         ),
       );
     }
@@ -1487,20 +1485,12 @@ class _ChatViewState extends State<ChatView> with TickerProviderStateMixin {
   }
 
   Widget _buildThinkingAnimationContent() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Agent thinking',
-          style: TextStyle(
-            color: AppStyles.mTextPrimary,
-            fontSize: 15,
-            height: 1.6,
-          ),
-        ),
-        const SizedBox(width: 12),
-        _BouncingDots(color: AppStyles.mPrimary),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [_BouncingDots(color: AppStyles.mPrimary)],
+      ),
     );
   }
 

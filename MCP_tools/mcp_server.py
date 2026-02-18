@@ -192,6 +192,140 @@ def switch_gmail_account(user_id: str = "default") -> str:
         return json.dumps({"error": f"Failed to switch account: {str(e)}"})
 
 
+@mcp.tool()
+def get_location() -> str:
+    """
+    Get the user's current precise location (latitude, longitude, city, country).
+    Use this for context-aware recommendations, weather, or local time.
+    """
+    logger.info("Executing get_location")
+    try:
+        import httpx
+        # Using ipapi.co for simple geolocation
+        response = httpx.get("https://ipapi.co/json/", timeout=5.0)
+        if response.status_code == 200:
+            data = response.json()
+            return json.dumps({
+                "city": data.get("city"),
+                "region": data.get("region"),
+                "country": data.get("country_name"),
+                "latitude": data.get("latitude"),
+                "longitude": data.get("longitude"),
+                "postal": data.get("postal"),
+                "timezone": data.get("timezone")
+            })
+        return json.dumps({"error": "Failed to fetch location data"})
+    except Exception as e:
+        logger.error(f"Error getting location: {e}")
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def get_weather(latitude: float, longitude: float) -> str:
+    """
+    Get the current weather and temperature for a specific location.
+    
+    Args:
+        latitude: Latitude of the location.
+        longitude: Longitude of the location.
+    """
+    logger.info(f"Executing get_weather for lat={latitude}, lon={longitude}")
+    try:
+        import httpx
+        # Use open-meteo for free, no-key weather data
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current_weather=true"
+        response = httpx.get(url, timeout=5.0)
+        
+        if response.status_code == 200:
+            data = response.json()
+            current = data.get("current_weather", {})
+            temp = current.get("temperature")
+            code = current.get("weathercode")
+            
+            # Simple WMO Weather interpretation
+            status_map = {
+                0: "Clear sky",
+                1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+                45: "Fog", 48: "Depositing rime fog",
+                51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+                61: "Slight rain", 63: "Moderate rain", 65: "Heavy rain",
+                71: "Slight snow fall", 73: "Moderate snow fall", 75: "Heavy snow fall",
+                77: "Snow grains",
+                80: "Slight rain showers", 81: "Moderate rain showers", 82: "Violent rain showers",
+                85: "Slight snow showers", 86: "Heavy snow showers",
+                95: "Thunderstorm", 96: "Thunderstorm with slight hail", 99: "Thunderstorm with heavy hail"
+            }
+            
+            status = status_map.get(code, "Clear")
+            return json.dumps({
+                "temperature": temp,
+                "unit": "°C",
+                "status": status,
+                "weather_code": code
+            })
+        return json.dumps({"error": f"Failed to fetch weather: {response.status_code}"})
+    except Exception as e:
+        logger.error(f"Error getting weather: {e}")
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def web_search(query: str) -> str:
+    """
+    Search the web for up-to-date information.
+    Use this for news, weather, traffic, or general knowledge not in the personal knowledge base.
+
+    Args:
+        query: The search query string.
+    """
+    logger.info(f"Executing web_search for query: {query}")
+    try:
+        from duckduckgo_search import DDGS
+        
+        results = DDGS().text(query, max_results=5)
+        
+        if not results:
+            return "No results found."
+            
+        summary = "Web Search Results:\n\n"
+        for i, r in enumerate(results):
+            title = r.get('title', 'No Title')
+            link = r.get('href', '#')
+            body = r.get('body', '')
+            summary += f"{i+1}. {title}\n   Source: {link}\n   {body}\n\n"
+            
+        return summary
+    except ImportError:
+        return "Error: duckduckgo-search package not installed. Please run 'pip install duckduckgo-search'."
+    except Exception as e:
+        logger.error(f"Error searching web: {e}")
+        return f"Error: {str(e)}"
+
+
+@mcp.tool()
+def create_project(name: str, description: str, color_hex: str = "#4F46E5", icon: str = "Folder") -> str:
+    """
+    Create a new project in the system.
+    Use this when the user wants to organize a new area of their life or work.
+
+    Args:
+        name: Name of the project.
+        description: Brief description of the project goal.
+        color_hex: Primary color for the project UI in hex format (e.g., #FF5733).
+        icon: Icon name for the project (e.g., Folder, Briefcase, GraduationCap).
+    """
+    logger.info(f"Generating project creation intent: {name}")
+    # This tool returns an "intent" structure that the Flutter side will recognize and execute
+    return json.dumps({
+        "type": "create_project_intent",
+        "name": name,
+        "description": description,
+        "color_hex": color_hex,
+        "icon": icon,
+        "timestamp": datetime.now().isoformat()
+    })
+
+
 if __name__ == "__main__":
     logger.info("Starting Calendar MCP Server (FastMCP)...")
     mcp.run()

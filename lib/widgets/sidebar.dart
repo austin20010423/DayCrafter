@@ -199,21 +199,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       icon: LucideIcons.smile,
                       isActive: provider.activeNavItem == NavItem.agent,
                       isCollapsed: !showExpanded,
-                      onTap: () {
-                        provider.setActiveNavItem(NavItem.agent);
-                        if (provider.activeProjectId == null &&
-                            provider.projects.isNotEmpty) {
-                          provider.setActiveProject(provider.projects.first.id);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 4),
-                    _SidebarItem(
-                      label: l10n.dashboard,
-                      icon: LucideIcons.barChart3,
-                      isActive: provider.activeNavItem == NavItem.dashboard,
-                      isCollapsed: !showExpanded,
-                      onTap: () => provider.setActiveNavItem(NavItem.dashboard),
+                      onTap: () => provider.setActiveNavItem(NavItem.agent),
                     ),
                   ],
                 ),

@@ -1,9 +1,7 @@
-crewai
-fastapi
-uvicorn
-pydantic
-python-dotenv
+duckduckgo-search
 fastmcp
 google-auth
 google-auth-oauthlib
 google-api-python-client
+python-dotenv
+httpx

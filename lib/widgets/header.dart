@@ -8,9 +8,16 @@ import 'search_overlay.dart';
 import 'notification_overlay.dart';
 
 class Header extends StatelessWidget {
-  final String? activeProjectName;
+  final String? locationName;
+  final IconData? locationIcon;
+  final Color? accentColor;
 
-  const Header({super.key, this.activeProjectName});
+  const Header({
+    super.key,
+    this.locationName,
+    this.locationIcon,
+    this.accentColor,
+  });
 
   void _openSearch(BuildContext context) {
     SearchOverlay.show(context);
@@ -37,26 +44,43 @@ class Header extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          RichText(
-            text: TextSpan(
-              style: TextStyle(
-                fontSize: 14,
-                color: AppStyles.mTextSecondary,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.w300,
+          Row(
+            children: [
+              Text(
+                'DayCrafter',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppStyles.mTextSecondary.withValues(alpha: 0.6),
+                ),
               ),
-              children: [
-                TextSpan(text: '${l10n.workspaces} / '),
-                TextSpan(
-                  text: activeProjectName ?? l10n.defaultProject,
+              if (locationName != null) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(
+                    LucideIcons.chevronRight,
+                    size: 14,
+                    color: AppStyles.mTextSecondary.withValues(alpha: 0.3),
+                  ),
+                ),
+                if (locationIcon != null) ...[
+                  Icon(
+                    locationIcon,
+                    size: 18,
+                    color: accentColor ?? AppStyles.mPrimary,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Text(
+                  locationName!,
                   style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                     color: AppStyles.mTextPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontStyle: FontStyle.normal,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
           Row(
             children: [

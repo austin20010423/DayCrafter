@@ -20,6 +20,7 @@ import 'widgets/settings_view.dart';
 import 'database/objectbox_service.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'services/embedding_service.dart';
+import 'widgets/global_agent_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -101,7 +102,7 @@ class DayCrafterApp extends StatelessWidget {
       // Theme
       theme: AppStyles.getThemeData(),
 
-      home: const SelectionArea(child: MainNavigator()),
+      home: const MainNavigator(),
     );
   }
 }
@@ -230,6 +231,30 @@ class _MainLayoutState extends State<MainLayout> {
     final provider = context.watch<DayCrafterProvider>();
     final activeProject = provider.activeProject;
 
+    String? locationName;
+    IconData? locationIcon;
+    Color? locationColor;
+
+    if (provider.isCalendarActive) {
+      locationName = 'Calendar';
+      locationIcon = LucideIcons.calendar;
+    } else if (provider.isSettingsActive) {
+      locationName = 'Settings';
+      locationIcon = LucideIcons.settings;
+    } else if (provider.isGlobalAgentActive) {
+      locationName = 'Agent';
+      locationIcon = LucideIcons.bot;
+    } else if (provider.isProjectChatActive && activeProject != null) {
+      locationName = activeProject.name;
+      locationIcon = LucideIcons.folder; // Default project icon
+      if (activeProject.colorHex != null) {
+        try {
+          final hex = activeProject.colorHex!.replaceAll('#', '');
+          locationColor = Color(int.parse('0xFF$hex'));
+        } catch (_) {}
+      }
+    }
+
     return Scaffold(
       backgroundColor: AppStyles.mBackground,
       body: Row(
@@ -240,7 +265,11 @@ class _MainLayoutState extends State<MainLayout> {
               color: AppStyles.mSurface,
               child: Column(
                 children: [
-                  Header(activeProjectName: activeProject?.name),
+                  Header(
+                    locationName: locationName,
+                    locationIcon: locationIcon,
+                    accentColor: locationColor,
+                  ),
                   Expanded(child: _buildMainContent(provider)),
                 ],
               ),
@@ -262,11 +291,17 @@ class _MainLayoutState extends State<MainLayout> {
       return const SettingsView();
     }
 
-    if (provider.activeProjectId == null) {
-      return _buildWelcomeBack(provider);
+    // Show global assistant
+    if (provider.isGlobalAgentActive) {
+      return const GlobalAgentView();
     }
 
-    return const ChatView();
+    // Show project chat
+    if (provider.isProjectChatActive && provider.activeProjectId != null) {
+      return const ChatView();
+    }
+
+    return _buildWelcomeBack(provider);
   }
 
   Widget _buildWelcomeBack(DayCrafterProvider provider) {

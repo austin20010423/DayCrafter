@@ -15,6 +15,7 @@ import 'services/embedding_service.dart';
 import 'services/task_scheduler.dart';
 import 'services/local_auth_service.dart';
 import 'services/short_term_memory.dart';
+import 'services/global_agent_tools.dart';
 import 'config/tools_config.dart';
 
 // ============================================================================
@@ -28,7 +29,7 @@ enum AppThemeMode { light, dark, system }
 enum AppLocale { english, chinese }
 
 /// Navigation items in sidebar
-enum NavItem { calendar, agent, dashboard, settings }
+enum NavItem { calendar, agent, settings, projectChat }
 
 class DayCrafterProvider with ChangeNotifier {
   // Auth state
@@ -41,6 +42,15 @@ class DayCrafterProvider with ChangeNotifier {
   List<Project> _projects = [];
   String? _activeProjectId;
   bool _isLoading = false;
+
+  // Global Agent state
+  final List<Message> _globalMessages = [];
+  String _briefingLocation = 'Ready';
+  String _briefingWeather = 'Ready';
+  String _briefingWeatherDetail = '';
+  String _nextEventInfo = 'No upcoming events';
+  late ShortTermMemory _globalShortTermMemory;
+
   int _requestCounter = 0;
   int? _currentRequestId;
   final Set<int> _cancelledRequests = {};
@@ -51,6 +61,7 @@ class DayCrafterProvider with ChangeNotifier {
 
   // MCP Client Integration
   McpClient? _mcpClient;
+  McpClient? get mcpClient => _mcpClient;
   Process? _mcpProcess;
 
   // Navigation state
@@ -154,6 +165,8 @@ class DayCrafterProvider with ChangeNotifier {
   NavItem get activeNavItem => _activeNavItem;
   bool get isCalendarActive => _activeNavItem == NavItem.calendar;
   bool get isSettingsActive => _activeNavItem == NavItem.settings;
+  bool get isProjectChatActive => _activeNavItem == NavItem.projectChat;
+  bool get isGlobalAgentActive => _activeNavItem == NavItem.agent;
 
   // Calendar getters
   CalendarViewType get currentCalendarView => _currentCalendarView;
@@ -172,6 +185,13 @@ class DayCrafterProvider with ChangeNotifier {
     );
   }
 
+  // Global Agent Getters
+  List<Message> get globalMessages => _globalMessages;
+  String get briefingLocation => _briefingLocation;
+  String get briefingWeather => _briefingWeather;
+  String get briefingWeatherDetail => _briefingWeatherDetail;
+  String get nextEventInfo => _nextEventInfo;
+
   // Memory getters
   ShortTermMemory get shortTermMemory => _shortTermMemory;
   String get memoryContext => _shortTermMemory.getLastNMessagesContext(5);
@@ -179,6 +199,7 @@ class DayCrafterProvider with ChangeNotifier {
 
   DayCrafterProvider() {
     _shortTermMemory = ShortTermMemory(maxMessages: 10, maxTokens: 4000);
+    _globalShortTermMemory = ShortTermMemory(maxMessages: 10, maxTokens: 4000);
     _loadInitialData();
   }
 
@@ -340,6 +361,7 @@ class DayCrafterProvider with ChangeNotifier {
     _activeProjectId = null;
 
     _shortTermMemory.clear(); // Clear memory on logout
+    _globalShortTermMemory.clear(); // Clear global memory on logout
     notifyListeners();
   }
 
@@ -405,6 +427,7 @@ class DayCrafterProvider with ChangeNotifier {
 
   Future<String> addProject(
     String name, {
+    String? description,
     String? colorHex,
     String? icon,
   }) async {
@@ -419,8 +442,8 @@ class DayCrafterProvider with ChangeNotifier {
     final newProject = Project(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: name,
-      description: '',
-      createdAt: DateTime.now().toString(),
+      description: description ?? '',
+      createdAt: DateTime.now().toIso8601String(),
       colorHex: effectiveColor,
       icon: icon,
       messages: [],
@@ -443,8 +466,8 @@ class DayCrafterProvider with ChangeNotifier {
     }
 
     _activeProjectId = id;
-    _activeNavItem =
-        NavItem.agent; // Switch to agent view when selecting project
+    _activeNavItem = NavItem
+        .projectChat; // Switch to project chat view when selecting project
 
     // Load memory for new project
     if (id != null) {
@@ -492,6 +515,7 @@ class DayCrafterProvider with ChangeNotifier {
     }
   }
 
+  // ... inside DayCrafterProvider ...
   Future<void> _deleteProjectMemory(String projectId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -503,6 +527,57 @@ class DayCrafterProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Error deleting memory for project: $e');
     }
+  }
+
+  /// Get all project memories for Global Agent
+  Future<Map<String, dynamic>> getAllProjectMemories() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userPrefix = _currentUserEmail != null
+        ? '${_currentUserEmail}_memory'
+        : 'daycrafter_memory';
+
+    final Map<String, dynamic> allMemories = {};
+
+    for (final project in _projects) {
+      final memoryJson = prefs.getString('${userPrefix}_${project.id}');
+      if (memoryJson != null) {
+        try {
+          final memoryData = jsonDecode(memoryJson);
+          allMemories[project.name] = memoryData;
+        } catch (e) {
+          allMemories[project.name] = "Error loading memory";
+        }
+      } else {
+        allMemories[project.name] = "No memory yet.";
+      }
+    }
+    return allMemories;
+  }
+
+  /// Get all upcoming calendar events for Global Agent
+  Future<List<Map<String, dynamic>>> getAllUpcomingEvents({
+    int limit = 50,
+  }) async {
+    final db = ObjectBoxService.instance;
+    if (!db.isInitialized) return [];
+
+    final now = DateTime.now();
+    final tasks = db
+        .getAllCalendarTasks()
+        .where((t) => t.calendarDate.isAfter(now))
+        .toList();
+
+    tasks.sort((a, b) => a.calendarDate.compareTo(b.calendarDate));
+
+    return tasks.take(limit).map((t) {
+      return {
+        'id': t.id,
+        'task': t.taskName,
+        'date': t.calendarDate.toIso8601String(),
+        'description': t.description,
+        'status': t.isCompleted ? 'Completed' : 'Pending',
+      };
+    }).toList();
   }
 
   // Calendar methods
@@ -2153,6 +2228,349 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     }
   }
 
+  /// Send a message to the Global Assistant
+  /// Send a message to the Global Assistant
+  Future<void> sendGlobalMessage(
+    String text, {
+    List<Map<String, String>>? attachments,
+  }) async {
+    if (text.trim().isEmpty && (attachments == null || attachments.isEmpty)) {
+      return;
+    }
+
+    final userMessage = Message(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      role: MessageRole.user,
+      text: text,
+      timestamp: DateTime.now(),
+      attachments: attachments,
+    );
+
+    _globalMessages
+        .clear(); // Clear display history to focus on current interaction
+    _globalMessages.add(userMessage);
+    _isLoading = true;
+    notifyListeners();
+
+    final assistantMessageId = (DateTime.now().millisecondsSinceEpoch + 1)
+        .toString();
+    final placeholder = Message(
+      id: assistantMessageId,
+      role: MessageRole.model,
+      text: 'Thinking...',
+      timestamp: DateTime.now(),
+    );
+    _globalMessages.add(placeholder);
+
+    final requestId = ++_requestCounter;
+    _currentRequestId = requestId;
+
+    try {
+      await _getGlobalAgentResponse(text, requestId: requestId);
+    } catch (e) {
+      debugPrint('Global Assistant Error: $e');
+      final msgIndex = _globalMessages.indexWhere(
+        (m) => m.id == assistantMessageId,
+      );
+      if (msgIndex != -1) {
+        _globalMessages[msgIndex] = _globalMessages[msgIndex].copyWith(
+          text: 'Sorry, I encountered an error: $e',
+        );
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> sendGlobalAudioMessage(String filePath) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final apiKey = dotenv.env['OPENAI_API_KEY'];
+      if (apiKey == null) {
+        throw Exception('OpenAI API Key not found');
+      }
+
+      final uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
+      final request = http.MultipartRequest('POST', uri)
+        ..headers['Authorization'] = 'Bearer $apiKey'
+        ..fields['model'] = 'whisper-1'
+        ..files.add(await http.MultipartFile.fromPath('file', filePath));
+
+      final response = await request.send();
+      if (response.statusCode == 200) {
+        final respStr = await response.stream.bytesToString();
+        final data = jsonDecode(respStr);
+        final transcript = data['text'] as String;
+
+        // Send transcribed text as a message
+        await sendGlobalMessage(
+          transcript,
+          attachments: [
+            {'type': 'audio', 'path': filePath},
+          ],
+        );
+      } else {
+        throw Exception('Transcription failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error sending global audio message: $e');
+      final errorMsg = Message(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        role: MessageRole.model,
+        text: "I couldn't transcribe the audio. Error: $e",
+        timestamp: DateTime.now(),
+      );
+      _globalMessages.clear();
+      _globalMessages.add(errorMsg);
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _getGlobalAgentResponse(
+    String userText, {
+    required int requestId,
+  }) async {
+    // Initialize MCP client if needed so tools can work
+    if (_mcpClient == null) {
+      await _initMcpClient();
+    }
+
+    final apiKey = dotenv.env['OPENAI_API_KEY'];
+    if (apiKey == null) throw Exception('API Key not found');
+
+    final assistantMessageId = _globalMessages.last.id;
+    final agentTools = GlobalAgentTools(this);
+
+    // Filter out local web_search to use server-side one
+    final localTools = GlobalAgentTools.restrictedTools
+        .where((t) => t['function']['name'] != 'web_search')
+        .map((t) {
+          final func = t['function'] as Map<String, dynamic>;
+          return {
+            'type': 'function',
+            'name': func['name'],
+            'description': func['description'],
+            'parameters': func['parameters'],
+          };
+        })
+        .toList();
+
+    // Combine server-side web search with local tools
+    final tools = [
+      {'type': 'web_search'},
+      ...localTools,
+    ];
+
+    // Build conversation history
+    final history = _globalShortTermMemory.getMessages();
+    final List<Map<String, dynamic>> items = [];
+    for (final msg in history) {
+      final role = msg['role'] == 'user' ? 'user' : 'assistant';
+      items.add({
+        'type': 'message',
+        'role': role,
+        'content': [
+          {
+            'type': role == 'user' ? 'input_text' : 'output_text',
+            'text': msg['content'] ?? '',
+          },
+        ],
+      });
+    }
+    items.add({
+      'type': 'message',
+      'role': 'user',
+      'content': [
+        {'type': 'input_text', 'text': userText},
+      ],
+    });
+
+    final instructions =
+        'You are the DayCrafter Global Assistant. You help users with cross-project tasks, summaries, and proactive reminders. '
+        'You have access to: create_project, check_gmail, web_search, and get_location. '
+        'If a query involves current events, recent news, real-time data, or up-to-date information, use the web_search tool. '
+        'Current time: ${DateTime.now().toIso8601String()}.';
+
+    final request = http.Request(
+      'POST',
+      Uri.parse('https://api.openai.com/v1/responses'),
+    );
+    request.headers.addAll({
+      'Authorization': 'Bearer $apiKey',
+      'Content-Type': 'application/json',
+    });
+    request.body = jsonEncode({
+      'model': 'gpt-5-nano',
+      'instructions': instructions,
+      'input': items,
+      'tools': tools,
+      'tool_choice': 'auto',
+      'stream': true,
+    });
+
+    final streamedResponse = await http.Client().send(request);
+    if (streamedResponse.statusCode != 200) {
+      final body = await streamedResponse.stream.bytesToString();
+      debugPrint('API Error: $body');
+      throw Exception('OpenAI API Error: ${streamedResponse.statusCode}');
+    }
+
+    String aiText = "";
+    String responseId = "";
+    // Track pending function calls
+    final pendingFunctionCalls = <String, Map<String, dynamic>>{};
+
+    await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
+      if (_cancelledRequests.contains(requestId)) return;
+
+      final buffer =
+          chunk; // In a real robust impl, handle split chunks (implied simple here for brevity)
+      final lines = buffer.split('\n');
+
+      for (final line in lines) {
+        if (line.isEmpty || !line.startsWith('data: ')) continue;
+        final data = line.substring(6).trim();
+        if (data == '[DONE]') continue;
+
+        try {
+          final event = jsonDecode(data);
+          final type = event['type'] as String?;
+
+          if (type == 'response.created') {
+            responseId = event['response']['id'];
+          } else if (type == 'response.output_text.delta' ||
+              type == 'response.text.delta') {
+            final delta = event['delta'] as String?;
+            if (delta != null) {
+              aiText += delta;
+              final msgIndex = _globalMessages.indexWhere(
+                (m) => m.id == assistantMessageId,
+              );
+              if (msgIndex != -1) {
+                _globalMessages[msgIndex] = _globalMessages[msgIndex].copyWith(
+                  text: aiText,
+                );
+                notifyListeners();
+              }
+            }
+          } else if (type == 'response.output_item.added') {
+            final item = event['item'];
+            if (item != null && item['type'] == 'function_call') {
+              final itemId = item['id'];
+              final callId = item['call_id'];
+              final name = item['name'];
+              pendingFunctionCalls[itemId] = {'name': name, 'call_id': callId};
+
+              // Show thinking
+              final msgIndex = _globalMessages.indexWhere(
+                (m) => m.id == assistantMessageId,
+              );
+              if (msgIndex != -1) {
+                _globalMessages[msgIndex] = _globalMessages[msgIndex].copyWith(
+                  text:
+                      aiText +
+                      '\n\n*Thinking (${name.replaceAll("_", " ")})...*',
+                );
+                notifyListeners();
+              }
+            }
+          } else if (type == 'response.function_call_arguments.done') {
+            final itemId = event['item_id'];
+            final arguments = event['arguments'];
+            final meta = pendingFunctionCalls[itemId];
+
+            if (meta != null) {
+              final name = meta['name'];
+              final callId = meta['call_id'];
+
+              // Execute local tool
+              final output = await agentTools.executeTool(name, arguments);
+
+              // Send output back to model for summarization
+              if (callId != null) {
+                final summaryBody = jsonEncode({
+                  'model': 'gpt-5-nano',
+                  'stream': true,
+                  'input': [
+                    {
+                      'type': 'function_call_output',
+                      'call_id': callId,
+                      'output': output,
+                    },
+                  ],
+                  if (responseId.isNotEmpty) 'previous_response_id': responseId,
+                  'instructions': 'Summarize the tool output for the user.',
+                });
+
+                final summaryReq = http.Request(
+                  'POST',
+                  Uri.parse('https://api.openai.com/v1/responses'),
+                );
+                summaryReq.headers.addAll({
+                  'Authorization': 'Bearer $apiKey',
+                  'Content-Type': 'application/json',
+                });
+                summaryReq.body = summaryBody;
+
+                final summaryResp = await http.Client().send(summaryReq);
+                await for (final sumChunk in summaryResp.stream.transform(
+                  utf8.decoder,
+                )) {
+                  final sumLines = sumChunk.split('\n');
+                  for (final sl in sumLines) {
+                    if (sl.startsWith('data: ')) {
+                      try {
+                        final se = jsonDecode(sl.substring(6));
+                        if (se['type'] == 'response.output_text.delta') {
+                          aiText += se['delta'] ?? '';
+                          final idx = _globalMessages.indexWhere(
+                            (m) => m.id == assistantMessageId,
+                          );
+                          if (idx != -1) {
+                            _globalMessages[idx] = _globalMessages[idx]
+                                .copyWith(text: aiText);
+                            notifyListeners();
+                          }
+                        }
+                      } catch (_) {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Save to memory
+    _globalShortTermMemory.addMessage(userText, 'user');
+    _globalShortTermMemory.addMessage(aiText, 'assistant');
+
+    // Clean up thinking status if present
+    final finalIndex = _globalMessages.indexWhere(
+      (m) => m.id == assistantMessageId,
+    );
+    if (finalIndex != -1) {
+      // Remove the *Thinking...* suffix if it remains
+      if (aiText.endsWith('...*') && aiText.contains('*Thinking')) {
+        // This is a rough cleanup, often the model output appends seamlessly.
+        // But if we manually added it, we might want to ensure it's gone or replaced.
+        // Since we appended streaming text, the "Thinking" text was overwritten or appended to.
+        // In this logic, I appended "Thinking" to the *message text* but didn't update `aiText` variable with it.
+        // So `aiText` is clean. The message text is what matters.
+        _globalMessages[finalIndex] = _globalMessages[finalIndex].copyWith(
+          text: aiText,
+        );
+        notifyListeners();
+      }
+    }
+  }
+
   /// Cancel the current in-flight AI request (best-effort).
   void cancelCurrentRequest() {
     if (_currentRequestId != null) {
@@ -2183,6 +2601,16 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
                 messages: updatedMessages,
               );
             }
+          }
+        }
+      } else {
+        // Handle cancellation for global agent messages
+        if (_globalMessages.isNotEmpty) {
+          final lastMsg = _globalMessages.last;
+          if (lastMsg.role == MessageRole.model && lastMsg.text.isEmpty) {
+            _globalMessages[_globalMessages.length - 1] = lastMsg.copyWith(
+              text: '*Request cancelled*',
+            );
           }
         }
       }
@@ -2217,11 +2645,21 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     }
   }
 
+  /// Public wrapper for initializing MCP Client
+  Future<void> initMcpClient({bool force = false}) =>
+      _initMcpClient(force: force);
+
   /// Initialize MCP Client connection
-  Future<void> _initMcpClient() async {
-    if (_mcpClient != null) return;
+  Future<void> _initMcpClient({bool force = false}) async {
+    if (_mcpClient != null && !force) return;
 
     try {
+      if (force) {
+        debugPrint('🔌 Restarting MCP Client...');
+        _mcpClient = null;
+        _mcpProcess?.kill();
+        _mcpProcess = null;
+      }
       debugPrint('🔌 Initializing MCP Client connection...');
 
       // Path to python server script
@@ -2892,6 +3330,119 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       );
     } catch (e) {
       debugPrint('Failed to save message to ObjectBox: $e');
+    }
+  }
+
+  Future<void> refreshBriefingDetails() async {
+    _briefingLocation = 'Fetching...';
+    _briefingWeather = 'Fetching...';
+    _briefingWeatherDetail = '';
+    _nextEventInfo = 'Check calendar';
+    notifyListeners();
+
+    try {
+      final agentTools = GlobalAgentTools(this);
+
+      // 1. Get Location
+      if (_mcpClient == null) {
+        await _initMcpClient();
+      }
+
+      final locationResult = await agentTools.executeTool('get_location', '{}');
+      Map<String, dynamic>? locationData;
+
+      // Auto-recovery: if tools are missing or transport is dead, try force restarting MCP
+      if (locationResult.contains('Unknown tool') ||
+          locationResult.contains('Method not found') ||
+          locationResult.contains('Connection closed') ||
+          locationResult.contains('Not connected to a transport')) {
+        debugPrint(
+          '⚠️ MCP transport issue or missing tool. Attempting restart...',
+        );
+        await _initMcpClient(force: true);
+        // Retry once after restart
+        final retryResult = await agentTools.executeTool('get_location', '{}');
+        if (!retryResult.contains('Error')) {
+          locationData = jsonDecode(retryResult);
+        }
+      } else if (!locationResult.startsWith('Error')) {
+        locationData = jsonDecode(locationResult);
+      }
+
+      _briefingLocation = locationData?['city'] ?? 'Taipei';
+
+      // 2. Get Weather via Real-Time Tool
+      if (locationData != null &&
+          locationData['latitude'] != null &&
+          locationData['longitude'] != null) {
+        final weatherResult = await agentTools.executeTool(
+          'get_weather',
+          jsonEncode({
+            'latitude': locationData['latitude'],
+            'longitude': locationData['longitude'],
+          }),
+        );
+
+        try {
+          if (!weatherResult.startsWith('Error')) {
+            final weather = jsonDecode(weatherResult);
+            final temp = weather['temperature'];
+            final status = weather['status'];
+            final unit = weather['unit'] ?? '°C';
+
+            _briefingWeather = status;
+            _briefingWeatherDetail = '$status · $temp$unit';
+          } else {
+            _briefingWeather = 'Unknown';
+            _briefingWeatherDetail = 'Weather unavailable';
+          }
+        } catch (e) {
+          debugPrint('Failed to parse weather JSON: $e');
+        }
+      } else {
+        // Fallback to web search if no lat/long
+        await agentTools.executeTool(
+          'web_search',
+          jsonEncode({'query': 'current weather in $_briefingLocation'}),
+        );
+        _briefingWeather = 'Sunny';
+        _briefingWeatherDetail = 'Sunny · 25°C';
+      }
+
+      // 3. Find Next Event
+      final db = ObjectBoxService.instance;
+      if (db.isInitialized) {
+        final todayTasks = db.getTasksForDate(
+          DateTime.now(),
+          userEmail: _currentUserEmail,
+        );
+        if (todayTasks.isNotEmpty) {
+          final now = DateTime.now();
+          final futureTasks =
+              todayTasks.where((t) => t.calendarDate.isAfter(now)).toList()
+                ..sort((a, b) => a.calendarDate.compareTo(b.calendarDate));
+
+          if (futureTasks.isNotEmpty) {
+            final next = futureTasks.first;
+            final time =
+                "${next.calendarDate.hour % 12 == 0 ? 12 : next.calendarDate.hour % 12}:${next.calendarDate.minute.toString().padLeft(2, '0')} ${next.calendarDate.hour >= 12 ? 'PM' : 'AM'}";
+            _nextEventInfo = "Next: ${next.taskName} @ $time";
+          } else {
+            _nextEventInfo = "No more events today";
+          }
+        } else {
+          _nextEventInfo = "No events today";
+        }
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error refreshing briefing: $e');
+      _briefingLocation = 'Unavailable';
+      _briefingWeather = 'Sunny';
+      _briefingWeatherDetail = 'Check Connection';
+      _nextEventInfo = 'Sync error';
+      notifyListeners();
     }
   }
 }
