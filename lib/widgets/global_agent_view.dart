@@ -9,6 +9,7 @@ import '../services/audio_service.dart';
 import '../provider.dart';
 import '../models.dart';
 import '../styles.dart';
+import '../l10n/app_localizations.dart';
 
 enum ViewMode { defaultMode, recording, upload }
 
@@ -38,6 +39,10 @@ class _GlobalAgentViewState extends State<GlobalAgentView>
   AnimationController? _glowController;
   Animation<double>? _glowAnimation;
 
+  // Suggestion bubble staggered animation
+  AnimationController? _suggestionController;
+  final List<Animation<double>> _suggestionAnimations = [];
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +56,24 @@ class _GlobalAgentViewState extends State<GlobalAgentView>
       );
     }
     _inputFocusNode.addListener(_onFocusChange);
+
+    // Setup suggestion bubble staggered animation
+    _suggestionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    const bubbleCount = 4;
+    for (int i = 0; i < bubbleCount; i++) {
+      final start = i * 0.18;
+      final end = (start + 0.4).clamp(0.0, 1.0);
+      _suggestionAnimations.add(
+        CurvedAnimation(
+          parent: _suggestionController!,
+          curve: Interval(start, end, curve: Curves.easeOutCubic),
+        ),
+      );
+    }
+    _suggestionController?.forward();
 
     // Refresh briefing details on load
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -84,7 +107,9 @@ class _GlobalAgentViewState extends State<GlobalAgentView>
 
   @override
   void dispose() {
+    _timer?.cancel();
     _glowController?.dispose();
+    _suggestionController?.dispose();
     _inputFocusNode.removeListener(_onFocusChange);
     _inputFocusNode.dispose();
     _searchController.dispose();
@@ -277,7 +302,48 @@ class _GlobalAgentViewState extends State<GlobalAgentView>
   }
 
   Widget _buildChatHistory(DayCrafterProvider provider) {
-    if (provider.globalMessages.isEmpty) return const SizedBox.shrink();
+    if (provider.globalMessages.isEmpty) {
+      // Suggestion bubbles when chat is empty
+      if (_suggestionAnimations.isEmpty) return const SizedBox.shrink();
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            _buildSuggestionBubble(
+              LucideIcons.listChecks,
+              AppLocalizations.of(context)!.suggestionPlanWork,
+              _suggestionAnimations.length > 0
+                  ? _suggestionAnimations[0]
+                  : null,
+            ),
+            _buildSuggestionBubble(
+              LucideIcons.calendarPlus,
+              AppLocalizations.of(context)!.suggestionAddEvent,
+              _suggestionAnimations.length > 1
+                  ? _suggestionAnimations[1]
+                  : null,
+            ),
+            _buildSuggestionBubble(
+              LucideIcons.mail,
+              AppLocalizations.of(context)!.suggestionCheckEmail,
+              _suggestionAnimations.length > 2
+                  ? _suggestionAnimations[2]
+                  : null,
+            ),
+            _buildSuggestionBubble(
+              LucideIcons.globe,
+              AppLocalizations.of(context)!.suggestionWebSearch,
+              _suggestionAnimations.length > 3
+                  ? _suggestionAnimations[3]
+                  : null,
+            ),
+          ],
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -832,6 +898,71 @@ class _GlobalAgentViewState extends State<GlobalAgentView>
     int m = seconds ~/ 60;
     int s = seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildSuggestionBubble(
+    IconData icon,
+    String text,
+    Animation<double>? animation,
+  ) {
+    Widget bubble = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          _searchController.text = text;
+          _searchController.selection = TextSelection.fromPosition(
+            TextPosition(offset: text.length),
+          );
+          _inputFocusNode.requestFocus();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppStyles.mSurface,
+            borderRadius: BorderRadius.circular(100),
+            border: Border.all(
+              color: AppStyles.mTextSecondary.withValues(alpha: 0.12),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: AppStyles.mPrimary),
+              const SizedBox(width: 8),
+              Text(
+                text,
+                style: TextStyle(
+                  color: AppStyles.mTextPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (animation != null) {
+      bubble = FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: animation,
+          alignment: Alignment.centerLeft,
+          child: bubble,
+        ),
+      );
+    }
+
+    return bubble;
   }
 }
 
