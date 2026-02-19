@@ -372,7 +372,9 @@ class _GlobalAgentViewState extends State<GlobalAgentView>
     // Show animation if text is empty OR if it starts with explicit thinking indicator
     // This matches how provider updates text during tool execution
     if (!isUser &&
-        (msg.text.isEmpty || msg.text.startsWith('*Thinking')) &&
+        (msg.text.isEmpty ||
+            msg.text == 'Thinking...' ||
+            msg.text.startsWith('*')) &&
         isStreaming) {
       aiContent = _buildThinkingAnimationContent();
     } else {

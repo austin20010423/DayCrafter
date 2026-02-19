@@ -58,15 +58,20 @@ def _get_gmail_service(user_id: str = "default"):
     # Refresh or re-authenticate
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            if not os.path.exists(CREDENTIALS_PATH):
-                raise FileNotFoundError(
-                    f"Gmail credentials.json not found at {CREDENTIALS_PATH}. "
-                    "Please follow gmail_credentials_setup.md to set up Google Cloud OAuth2."
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                logger.error(f"Error refreshing token: {e}")
+                raise Exception(
+                    "Gmail authentication failed (refresh failed). "
+                    "Please run `python3 MCP_tools/setup_auth.py` in your terminal to re-authenticate."
                 )
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, GMAIL_SCOPES)
-            creds = flow.run_local_server(port=0)
+        else:
+            # DO NOT run local server here as it blocks the headless process
+            raise Exception(
+                "Gmail authentication required. "
+                "Please run `python3 MCP_tools/setup_auth.py` in your terminal to authenticate."
+            )
 
         # Save token for future use
         with open(token_path, 'w') as token_file:

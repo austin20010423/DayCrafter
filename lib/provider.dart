@@ -2390,10 +2390,8 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     });
 
     final instructions =
-        'You are the DayCrafter Global Assistant. You help users with cross-project tasks, summaries, and proactive reminders. '
-        'You have access to: create_project, check_gmail, web_search, and get_location. '
-        'If a query involves current events, recent news, real-time data, or up-to-date information, use the web_search tool. '
-        'Current time: ${DateTime.now().toIso8601String()}.';
+        'You are DayCrafter, a fast personal assistant. Be brief and direct. '
+        'Use tools only when needed. Current time: ${DateTime.now().toIso8601String()}.';
 
     final request = http.Request(
       'POST',
@@ -2404,7 +2402,7 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       'Content-Type': 'application/json',
     });
     request.body = jsonEncode({
-      'model': 'gpt-5-nano',
+      'model': 'gpt-4.1-mini',
       'instructions': instructions,
       'input': items,
       'tools': tools,
@@ -2420,17 +2418,15 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     }
 
     String aiText = "";
-    String responseId = "";
-    // Track pending function calls
+    // Track pending function calls: itemId -> {name, call_id, arguments}
     final pendingFunctionCalls = <String, Map<String, dynamic>>{};
+    bool hasToolCalls = false;
 
+    // Phase 1: Parse the initial stream, collect tool calls OR stream text directly
     await for (final chunk in streamedResponse.stream.transform(utf8.decoder)) {
       if (_cancelledRequests.contains(requestId)) return;
 
-      final buffer =
-          chunk; // In a real robust impl, handle split chunks (implied simple here for brevity)
-      final lines = buffer.split('\n');
-
+      final lines = chunk.split('\n');
       for (final line in lines) {
         if (line.isEmpty || !line.startsWith('data: ')) continue;
         final data = line.substring(6).trim();
@@ -2440,10 +2436,9 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
           final event = jsonDecode(data);
           final type = event['type'] as String?;
 
-          if (type == 'response.created') {
-            responseId = event['response']['id'];
-          } else if (type == 'response.output_text.delta' ||
+          if (type == 'response.output_text.delta' ||
               type == 'response.text.delta') {
+            // Direct text response (no tool calls) — stream it
             final delta = event['delta'] as String?;
             if (delta != null) {
               aiText += delta;
@@ -2460,20 +2455,19 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
           } else if (type == 'response.output_item.added') {
             final item = event['item'];
             if (item != null && item['type'] == 'function_call') {
+              hasToolCalls = true;
               final itemId = item['id'];
               final callId = item['call_id'];
               final name = item['name'];
               pendingFunctionCalls[itemId] = {'name': name, 'call_id': callId};
 
-              // Show thinking
+              // Show thinking status
               final msgIndex = _globalMessages.indexWhere(
                 (m) => m.id == assistantMessageId,
               );
               if (msgIndex != -1) {
                 _globalMessages[msgIndex] = _globalMessages[msgIndex].copyWith(
-                  text:
-                      aiText +
-                      '\n\n*Thinking (${name.replaceAll("_", " ")})...*',
+                  text: '*Gathering information...*',
                 );
                 notifyListeners();
               }
@@ -2481,69 +2475,181 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
           } else if (type == 'response.function_call_arguments.done') {
             final itemId = event['item_id'];
             final arguments = event['arguments'];
-            final meta = pendingFunctionCalls[itemId];
-
-            if (meta != null) {
-              final name = meta['name'];
-              final callId = meta['call_id'];
-
-              // Execute local tool
-              final output = await agentTools.executeTool(name, arguments);
-
-              // Send output back to model for summarization
-              if (callId != null) {
-                final summaryBody = jsonEncode({
-                  'model': 'gpt-5-nano',
-                  'stream': true,
-                  'input': [
-                    {
-                      'type': 'function_call_output',
-                      'call_id': callId,
-                      'output': output,
-                    },
-                  ],
-                  if (responseId.isNotEmpty) 'previous_response_id': responseId,
-                  'instructions': 'Summarize the tool output for the user.',
-                });
-
-                final summaryReq = http.Request(
-                  'POST',
-                  Uri.parse('https://api.openai.com/v1/responses'),
-                );
-                summaryReq.headers.addAll({
-                  'Authorization': 'Bearer $apiKey',
-                  'Content-Type': 'application/json',
-                });
-                summaryReq.body = summaryBody;
-
-                final summaryResp = await http.Client().send(summaryReq);
-                await for (final sumChunk in summaryResp.stream.transform(
-                  utf8.decoder,
-                )) {
-                  final sumLines = sumChunk.split('\n');
-                  for (final sl in sumLines) {
-                    if (sl.startsWith('data: ')) {
-                      try {
-                        final se = jsonDecode(sl.substring(6));
-                        if (se['type'] == 'response.output_text.delta') {
-                          aiText += se['delta'] ?? '';
-                          final idx = _globalMessages.indexWhere(
-                            (m) => m.id == assistantMessageId,
-                          );
-                          if (idx != -1) {
-                            _globalMessages[idx] = _globalMessages[idx]
-                                .copyWith(text: aiText);
-                            notifyListeners();
-                          }
-                        }
-                      } catch (_) {}
-                    }
-                  }
-                }
-              }
+            if (pendingFunctionCalls.containsKey(itemId)) {
+              pendingFunctionCalls[itemId]!['arguments'] = arguments;
             }
           }
         } catch (_) {}
+      }
+    }
+
+    // Phase 2: If tool calls were made, execute them all in parallel
+    if (hasToolCalls && pendingFunctionCalls.isNotEmpty) {
+      debugPrint(
+        '🔧 Executing ${pendingFunctionCalls.length} tool calls in parallel...',
+      );
+
+      // Execute all tools in parallel
+      final toolEntries = pendingFunctionCalls.entries.toList();
+      final futures = toolEntries.map((entry) async {
+        final name = entry.value['name'] as String;
+        final arguments = entry.value['arguments'] as String? ?? '{}';
+        debugPrint('🔧 Starting tool: $name');
+        final output = await agentTools.executeTool(name, arguments);
+        debugPrint('🔧 Tool $name completed (${output.length} chars)');
+        return MapEntry(name, output);
+      }).toList();
+
+      final results = await Future.wait(futures);
+
+      // Phase 3: Send a single follow-up API call with user question + all tool results
+      debugPrint(
+        '📤 Sending ${results.length} tool results for final response...',
+      );
+
+      // Build tool context
+      final toolContext = results
+          .map(
+            (r) =>
+                '## ${r.key.replaceAll("_", " ").toUpperCase()} Result:\n${r.value}',
+          )
+          .join('\n\n');
+
+      final followUpBody = jsonEncode({
+        'model': 'gpt-4.1-mini',
+        'stream': true,
+        'input': [
+          {
+            'type': 'message',
+            'role': 'user',
+            'content': [
+              {
+                'type': 'input_text',
+                'text':
+                    'User question: $userText\n\nHere is the data:\n$toolContext\n\nPlease answer the user question based on the data above.',
+              },
+            ],
+          },
+        ],
+        'instructions':
+            'Answer the user based on the data provided. '
+            'Be direct and concise. '
+            'Never mention tool names or internal details. '
+            'Current time: ${DateTime.now().toIso8601String()}.',
+      });
+
+      final followUpReq = http.Request(
+        'POST',
+        Uri.parse('https://api.openai.com/v1/responses'),
+      );
+      followUpReq.headers.addAll({
+        'Authorization': 'Bearer $apiKey',
+        'Content-Type': 'application/json',
+      });
+      followUpReq.body = followUpBody;
+
+      // Clear the "Gathering information..." text
+      aiText = '';
+      final clearIdx = _globalMessages.indexWhere(
+        (m) => m.id == assistantMessageId,
+      );
+      if (clearIdx != -1) {
+        _globalMessages[clearIdx] = _globalMessages[clearIdx].copyWith(
+          text: '',
+        );
+        notifyListeners();
+      }
+
+      final followUpResp = await http.Client().send(followUpReq);
+      debugPrint('📥 Follow-up response status: ${followUpResp.statusCode}');
+
+      if (followUpResp.statusCode == 200) {
+        await for (final sumChunk in followUpResp.stream.transform(
+          utf8.decoder,
+        )) {
+          if (_cancelledRequests.contains(requestId)) return;
+          final sumLines = sumChunk.split('\n');
+          for (final sl in sumLines) {
+            if (sl.startsWith('data: ')) {
+              final dataStr = sl.substring(6).trim();
+              if (dataStr == '[DONE]') continue;
+              try {
+                final se = jsonDecode(dataStr);
+                final eventType = se['type'] as String?;
+                debugPrint('📨 Follow-up event: $eventType');
+                if (eventType == 'response.output_item.done') {
+                  debugPrint('📨 output_item: ${jsonEncode(se['item'])}');
+                }
+                if (eventType == 'response.incomplete') {
+                  debugPrint(
+                    '📨 incomplete reason: ${se['response']?['incomplete_details']}',
+                  );
+                }
+                if (eventType == 'response.output_text.delta' ||
+                    eventType == 'response.text.delta') {
+                  aiText += se['delta'] ?? '';
+                  final idx = _globalMessages.indexWhere(
+                    (m) => m.id == assistantMessageId,
+                  );
+                  if (idx != -1) {
+                    _globalMessages[idx] = _globalMessages[idx].copyWith(
+                      text: aiText,
+                    );
+                    notifyListeners();
+                  }
+                } else if (eventType == 'response.completed' &&
+                    aiText.isEmpty) {
+                  // Fallback: extract text from completed response
+                  try {
+                    final output = se['response']?['output'] as List?;
+                    if (output != null) {
+                      for (final item in output) {
+                        final content = item['content'] as List?;
+                        if (content != null) {
+                          for (final c in content) {
+                            if (c['text'] != null) {
+                              aiText = c['text'];
+                              final idx = _globalMessages.indexWhere(
+                                (m) => m.id == assistantMessageId,
+                              );
+                              if (idx != -1) {
+                                _globalMessages[idx] = _globalMessages[idx]
+                                    .copyWith(text: aiText);
+                                notifyListeners();
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (e) {
+                    debugPrint('❌ Fallback extraction failed: $e');
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+        }
+        debugPrint(
+          '✅ Follow-up response complete. aiText length: ${aiText.length}',
+        );
+      } else {
+        final errorBody = await followUpResp.stream.bytesToString();
+        debugPrint('❌ Follow-up API error: $errorBody');
+        // Fallback: show a friendly message with the raw data
+        aiText = results
+            .map((r) => r.value)
+            .where((v) => v.isNotEmpty && !v.startsWith('Error'))
+            .join('\n\n');
+        if (aiText.isEmpty)
+          aiText = 'Sorry, I had trouble processing that request.';
+        final idx = _globalMessages.indexWhere(
+          (m) => m.id == assistantMessageId,
+        );
+        if (idx != -1) {
+          _globalMessages[idx] = _globalMessages[idx].copyWith(text: aiText);
+          notifyListeners();
+        }
       }
     }
 
@@ -2551,23 +2657,15 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     _globalShortTermMemory.addMessage(userText, 'user');
     _globalShortTermMemory.addMessage(aiText, 'assistant');
 
-    // Clean up thinking status if present
+    // Final cleanup — ensure message is updated
     final finalIndex = _globalMessages.indexWhere(
       (m) => m.id == assistantMessageId,
     );
     if (finalIndex != -1) {
-      // Remove the *Thinking...* suffix if it remains
-      if (aiText.endsWith('...*') && aiText.contains('*Thinking')) {
-        // This is a rough cleanup, often the model output appends seamlessly.
-        // But if we manually added it, we might want to ensure it's gone or replaced.
-        // Since we appended streaming text, the "Thinking" text was overwritten or appended to.
-        // In this logic, I appended "Thinking" to the *message text* but didn't update `aiText` variable with it.
-        // So `aiText` is clean. The message text is what matters.
-        _globalMessages[finalIndex] = _globalMessages[finalIndex].copyWith(
-          text: aiText,
-        );
-        notifyListeners();
-      }
+      _globalMessages[finalIndex] = _globalMessages[finalIndex].copyWith(
+        text: aiText,
+      );
+      notifyListeners();
     }
   }
 
@@ -3386,11 +3484,12 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
         try {
           if (!weatherResult.startsWith('Error')) {
             final weather = jsonDecode(weatherResult);
-            final temp = weather['temperature'];
-            final status = weather['status'];
+            final temp = weather['temperature'] ?? '--';
+            final status =
+                weather['status'] ?? weather['description'] ?? 'Unknown';
             final unit = weather['unit'] ?? '°C';
 
-            _briefingWeather = status;
+            _briefingWeather = status.toString();
             _briefingWeatherDetail = '$status · $temp$unit';
           } else {
             _briefingWeather = 'Unknown';

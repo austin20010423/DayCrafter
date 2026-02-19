@@ -146,24 +146,37 @@ class GlobalAgentTools {
     try {
       final args = jsonDecode(arguments);
 
-      switch (name) {
-        case 'get_location':
-          return await _handleGetLocation();
-        case 'get_weather':
-          return await _handleGetWeather(args);
-        case 'web_search':
-          return await _handleWebSearch(args['query']);
-        case 'create_project':
-          return await _handleCreateProject(args);
-        case 'check_gmail':
-          return await _handleCheckGmail(args);
-        case 'get_all_project_memories':
-          return await _handleGetAllProjectMemories();
-        case 'get_all_calendar_events':
-          return await _handleGetAllCalendarEvents(args);
-        default:
-          return 'Error: Unknown tool $name';
-      }
+      // Wrap the actual execution in a timeout to prevent indefinite hanging
+      final result =
+          await Future<String>(() async {
+            switch (name) {
+              case 'get_location':
+                return await _handleGetLocation();
+              case 'get_weather':
+                return await _handleGetWeather(args);
+              case 'web_search':
+                return await _handleWebSearch(args['query']);
+              case 'create_project':
+                return await _handleCreateProject(args);
+              case 'check_gmail':
+                return await _handleCheckGmail(args);
+              case 'get_all_project_memories':
+                return await _handleGetAllProjectMemories();
+              case 'get_all_calendar_events':
+                return await _handleGetAllCalendarEvents(args);
+              default:
+                return 'Error: Unknown tool $name';
+            }
+          }).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              debugPrint('GlobalAgentTools: TIMEOUT executing $name after 30s');
+              return 'Error: Tool $name timed out after 30 seconds. Please try again.';
+            },
+          );
+
+      debugPrint('GlobalAgentTools: $name completed successfully');
+      return result;
     } catch (e) {
       debugPrint('GlobalAgentTools Error: $e');
       return 'Error executing tool $name: $e';
@@ -234,20 +247,33 @@ class GlobalAgentTools {
   }
 
   Future<String> _handleCheckGmail(Map<String, dynamic> args) async {
+    debugPrint('_handleCheckGmail: Starting...');
     final client = provider.mcpClient;
-    if (client == null) return 'Error: Email service unavailable';
+    if (client == null) {
+      debugPrint('_handleCheckGmail: MCP client is null!');
+      return 'Error: Email service unavailable. MCP client not initialized.';
+    }
 
-    final result = await client.callTool(
-      CallToolRequest(
-        name: 'check_gmail',
-        arguments: {
-          'query': args['query'] ?? 'is:inbox',
-          'max_results': args['max_results'] ?? 5,
-        },
-      ),
-    );
+    debugPrint('_handleCheckGmail: Calling MCP tool check_gmail...');
+    try {
+      final result = await client.callTool(
+        CallToolRequest(
+          name: 'check_gmail',
+          arguments: {
+            'query': args['query'] ?? 'is:inbox',
+            'max_results': args['max_results'] ?? 5,
+          },
+        ),
+      );
 
-    return _extractTextFromResult(result);
+      debugPrint(
+        '_handleCheckGmail: Got result with ${result.content.length} content items',
+      );
+      return _extractTextFromResult(result);
+    } catch (e) {
+      debugPrint('_handleCheckGmail: Error calling MCP tool: $e');
+      return 'Error checking Gmail: $e';
+    }
   }
 
   String _extractTextFromResult(CallToolResult result) {
