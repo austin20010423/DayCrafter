@@ -23,7 +23,6 @@ class AudioService {
         const config = RecordConfig(); // Default config (m4a on iOS/macOS)
 
         await _audioRecorder.start(config, path: path);
-        debugPrint('Started recording at $path');
       }
     } catch (e) {
       debugPrint('Error starting recording: $e');
@@ -33,7 +32,7 @@ class AudioService {
   Future<String?> stopRecording() async {
     try {
       final path = await _audioRecorder.stop();
-      debugPrint('Stopped recording at $path');
+
       return path;
     } catch (e) {
       debugPrint('Error stopping recording: $e');

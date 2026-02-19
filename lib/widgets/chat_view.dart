@@ -421,11 +421,7 @@ class _ChatViewState extends State<ChatView> with TickerProviderStateMixin {
             _attachedFilePath = path;
             _attachedFileType = 'voice';
           });
-          debugPrint('📎 Voice file uploaded successfully:');
-          debugPrint('   - Name: ${file.name}');
-          debugPrint('   - Path: $path');
-          debugPrint('   - Type: voice');
-          debugPrint('   - Ready to prompt: ✅');
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${file.name} attached. Waiting for your message.'),
@@ -455,11 +451,7 @@ class _ChatViewState extends State<ChatView> with TickerProviderStateMixin {
             _attachedFilePath = path;
             _attachedFileType = 'text';
           });
-          debugPrint('📎 Text file uploaded successfully:');
-          debugPrint('   - Name: ${file.name}');
-          debugPrint('   - Path: $path');
-          debugPrint('   - Type: text');
-          debugPrint('   - Ready to prompt: ✅');
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('${file.name} attached. Waiting for your message.'),

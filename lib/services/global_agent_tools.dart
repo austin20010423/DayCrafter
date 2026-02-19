@@ -141,8 +141,6 @@ class GlobalAgentTools {
 
   /// Execute a tool call from the Global Agent
   Future<String> executeTool(String name, String arguments) async {
-    debugPrint('GlobalAgentTools: Executing $name with $arguments');
-
     try {
       final args = jsonDecode(arguments);
 
@@ -170,12 +168,10 @@ class GlobalAgentTools {
           }).timeout(
             const Duration(seconds: 30),
             onTimeout: () {
-              debugPrint('GlobalAgentTools: TIMEOUT executing $name after 30s');
               return 'Error: Tool $name timed out after 30 seconds. Please try again.';
             },
           );
 
-      debugPrint('GlobalAgentTools: $name completed successfully');
       return result;
     } catch (e) {
       debugPrint('GlobalAgentTools Error: $e');
@@ -226,35 +222,51 @@ class GlobalAgentTools {
   }
 
   Future<String> _handleCreateProject(Map<String, dynamic> args) async {
-    // This tool is special as it updates the Flutter state directly
-    final name = args['name'];
-    final description = args['description'];
-    final color = args['color_hex'] ?? '#4F46E5';
-    final icon = args['icon'] ?? 'Folder';
+    final name = args['name'] as String?;
+    final description = args['description'] as String? ?? '';
+    final color = args['color_hex'] as String?;
+    final icon = args['icon'] as String?;
 
-    // Call provider to add project (need to expose this method in provider)
-    // We'll return a JSON confirmation that the AI can understand
-    return jsonEncode({
-      "status": "success",
-      "message": "Project '$name' created successfully.",
-      "project": {
-        "name": name,
-        "description": description,
-        "color": color,
-        "icon": icon,
-      },
-    });
+    if (name == null || name.isEmpty) {
+      return jsonEncode({
+        "status": "error",
+        "message": "Project name is required.",
+      });
+    }
+
+    try {
+      final projectId = await provider.addProject(
+        name,
+        description: description,
+        colorHex: color,
+        icon: icon,
+      );
+
+      return jsonEncode({
+        "status": "success",
+        "message": "Project '$name' created successfully.",
+        "project_id": projectId,
+        "project": {
+          "name": name,
+          "description": description,
+          "color": color,
+          "icon": icon,
+        },
+      });
+    } catch (e) {
+      return jsonEncode({
+        "status": "error",
+        "message": "Failed to create project: $e",
+      });
+    }
   }
 
   Future<String> _handleCheckGmail(Map<String, dynamic> args) async {
-    debugPrint('_handleCheckGmail: Starting...');
     final client = provider.mcpClient;
     if (client == null) {
-      debugPrint('_handleCheckGmail: MCP client is null!');
       return 'Error: Email service unavailable. MCP client not initialized.';
     }
 
-    debugPrint('_handleCheckGmail: Calling MCP tool check_gmail...');
     try {
       final result = await client.callTool(
         CallToolRequest(
@@ -266,9 +278,6 @@ class GlobalAgentTools {
         ),
       );
 
-      debugPrint(
-        '_handleCheckGmail: Got result with ${result.content.length} content items',
-      );
       return _extractTextFromResult(result);
     } catch (e) {
       debugPrint('_handleCheckGmail: Error calling MCP tool: $e');

@@ -61,11 +61,10 @@ class ObjectBoxService {
   /// Wipe all data (for testing/reset)
   void clearAllData() {
     if (!_isInitialized) return;
-    debugPrint('🔥 Wiping all data from database...');
+
     _projectBox?.removeAll();
     _messageBox?.removeAll();
     _calendarTaskBox?.removeAll();
-    debugPrint('✨ Database cleared');
   }
 
   // ============= Project Operations =============
@@ -164,7 +163,6 @@ class ObjectBoxService {
     try {
       final existing = allTasks.firstWhere((t) => t.uuid == task.uuid);
       task.id = existing.id; // Update existing
-      debugPrint('found existing task with id: ${existing.id}');
     } catch (_) {
       // Not found, new task
     }
@@ -295,13 +293,8 @@ class ObjectBoxService {
         .build();
     final tasks = query.find();
 
-    debugPrint('🗑️ FOUND ${tasks.length} tasks for project $projectId');
-    for (var t in tasks) {
-      debugPrint('  - Will delete task: ${t.taskName} (UUID: ${t.uuid})');
-    }
-
     calendarTaskBox.removeMany(tasks.map((t) => t.id).toList());
-    debugPrint('🗑️ Deleted tasks successfully');
+
     query.close();
   }
 

@@ -47,7 +47,6 @@ class EmbeddingService {
       }
 
       _isInitialized = true;
-      debugPrint('✅ Embedding service initialized (OpenAI API)');
     } catch (e) {
       debugPrint('⚠️ Embedding service initialization failed: $e');
       rethrow;

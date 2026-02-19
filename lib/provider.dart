@@ -507,7 +507,6 @@ class DayCrafterProvider with ChangeNotifier {
       _shortTermMemory.clear();
       if (memoryJson != null) {
         _shortTermMemory.importFromJson(memoryJson);
-        debugPrint('✅ Loaded memory for project: $projectId');
       }
     } catch (e) {
       debugPrint('Error loading memory for project: $e');
@@ -523,7 +522,6 @@ class DayCrafterProvider with ChangeNotifier {
           ? '${_currentUserEmail}_memory'
           : 'daycrafter_memory';
       await prefs.remove('${userPrefix}_$projectId');
-      debugPrint('🗑️ Deleted memory for project: $projectId');
     } catch (e) {
       debugPrint('Error deleting memory for project: $e');
     }
@@ -670,7 +668,6 @@ class DayCrafterProvider with ChangeNotifier {
 
         // Use expanded to get ALL daily instances
         final pid = projectId ?? _activeProjectId;
-        debugPrint('Saving task ${task['task']} with Project ID: $pid');
 
         final taskInstances = CalendarTaskEntity.fromTaskMapExpanded(
           task,
@@ -892,7 +889,6 @@ class DayCrafterProvider with ChangeNotifier {
       }
 
       notifyListeners();
-      debugPrint('🗑️ Deleted task: $taskName (ID: $taskId)');
     } catch (e) {
       debugPrint('❌ Error deleting task: $e');
     }
@@ -921,10 +917,6 @@ class DayCrafterProvider with ChangeNotifier {
       );
       _saveMemoryForProject(projectId);
     }
-
-    debugPrint(
-      '🧠 Recorded task action in project memory ($projectId): $logMessage',
-    );
   }
 
   DateTime _parseDate(String? dateStr) {
@@ -1087,8 +1079,6 @@ class DayCrafterProvider with ChangeNotifier {
 
   /// User denied the pending MCP action
   Future<void> denyPendingMcp(Message message) async {
-    debugPrint('🛑 User DENIED MCP action.');
-
     _isLoading = true;
     notifyListeners();
 
@@ -1133,17 +1123,12 @@ class DayCrafterProvider with ChangeNotifier {
     List<Map<String, String>>? attachments,
     required int requestId,
   }) async {
-    debugPrint('Starting AI response with MCP tool support...');
-
     try {
       // Build user message with attachments
       String userMessage = userText;
       if (attachments != null && attachments.isNotEmpty) {
         for (final att in attachments) {
           if (_cancelledRequests.contains(requestId)) {
-            debugPrint(
-              'Request $requestId cancelled before processing attachments',
-            );
             return;
           }
           final type = att['type'];
@@ -1257,7 +1242,6 @@ Always use same language as the user.
 ''';
 
       if (_cancelledRequests.contains(requestId)) {
-        debugPrint('Request $requestId cancelled before API call');
         return;
       }
 
@@ -1271,7 +1255,6 @@ Always use same language as the user.
         MessageRole.model,
       );
     }
-    debugPrint('AI response completed');
   }
 
   /// Use the Responses API with web search capability
@@ -1281,10 +1264,6 @@ Always use same language as the user.
     String systemPrompt,
     int requestId,
   ) async {
-    debugPrint('═' * 60);
-    debugPrint('🤖 RESPONSES API WITH WEB SEARCH');
-    debugPrint('═' * 60);
-
     // Ensure dotenv is loaded
     if (!dotenv.isInitialized) {
       try {
@@ -1364,8 +1343,6 @@ If a query involves current events, recent news, real-time data, or up-to-date i
 If a user wants to plan, schedule, or organize tasks, use the task_and_schedule_planer tool.
 Always provide sources when you search the web.''';
 
-      debugPrint('🔍 Sending streaming request via Responses API...');
-
       // Use streaming HTTP request
       final request = http.Request(
         'POST',
@@ -1387,10 +1364,7 @@ Always provide sources when you search the web.''';
 
       final streamedResponse = await http.Client().send(request);
 
-      debugPrint('Response status: ${streamedResponse.statusCode}');
-
       if (_cancelledRequests.contains(requestId)) {
-        debugPrint('Request $requestId cancelled after starting stream');
         return;
       }
 
@@ -1416,7 +1390,6 @@ Always provide sources when you search the web.''';
         utf8.decoder,
       )) {
         if (_cancelledRequests.contains(requestId)) {
-          debugPrint('Request $requestId cancelled during stream');
           return;
         }
 
@@ -1458,7 +1431,6 @@ Always provide sources when you search the web.''';
 
               if (type == 'response.created') {
                 responseId = event['response']['id'];
-                debugPrint('🆔 Response ID: $responseId');
               } else if (type == 'response.output_text.delta' ||
                   type == 'response.text.delta' ||
                   event.containsKey('delta')) {
@@ -2137,8 +2109,6 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
         aiText = "I couldn't generate a response. Please try again.";
       }
 
-      debugPrint('✅ Stream completed. Length: ${aiText.length} chars');
-
       // Final update to ensure complete text is saved
       if (_activeProjectId != null) {
         final projectIndex = _projects.indexWhere(
@@ -2485,27 +2455,20 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
 
     // Phase 2: If tool calls were made, execute them all in parallel
     if (hasToolCalls && pendingFunctionCalls.isNotEmpty) {
-      debugPrint(
-        '🔧 Executing ${pendingFunctionCalls.length} tool calls in parallel...',
-      );
-
       // Execute all tools in parallel
       final toolEntries = pendingFunctionCalls.entries.toList();
       final futures = toolEntries.map((entry) async {
         final name = entry.value['name'] as String;
         final arguments = entry.value['arguments'] as String? ?? '{}';
-        debugPrint('🔧 Starting tool: $name');
+
         final output = await agentTools.executeTool(name, arguments);
-        debugPrint('🔧 Tool $name completed (${output.length} chars)');
+
         return MapEntry(name, output);
       }).toList();
 
       final results = await Future.wait(futures);
 
       // Phase 3: Send a single follow-up API call with user question + all tool results
-      debugPrint(
-        '📤 Sending ${results.length} tool results for final response...',
-      );
 
       // Build tool context
       final toolContext = results
@@ -2561,7 +2524,6 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       }
 
       final followUpResp = await http.Client().send(followUpReq);
-      debugPrint('📥 Follow-up response status: ${followUpResp.statusCode}');
 
       if (followUpResp.statusCode == 200) {
         await for (final sumChunk in followUpResp.stream.transform(
@@ -2576,15 +2538,9 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
               try {
                 final se = jsonDecode(dataStr);
                 final eventType = se['type'] as String?;
-                debugPrint('📨 Follow-up event: $eventType');
-                if (eventType == 'response.output_item.done') {
-                  debugPrint('📨 output_item: ${jsonEncode(se['item'])}');
-                }
-                if (eventType == 'response.incomplete') {
-                  debugPrint(
-                    '📨 incomplete reason: ${se['response']?['incomplete_details']}',
-                  );
-                }
+
+                if (eventType == 'response.output_item.done') {}
+                if (eventType == 'response.incomplete') {}
                 if (eventType == 'response.output_text.delta' ||
                     eventType == 'response.text.delta') {
                   aiText += se['delta'] ?? '';
@@ -2630,9 +2586,6 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
             }
           }
         }
-        debugPrint(
-          '✅ Follow-up response complete. aiText length: ${aiText.length}',
-        );
       } else {
         final errorBody = await followUpResp.stream.bytesToString();
         debugPrint('❌ Follow-up API error: $errorBody');
@@ -2753,12 +2706,10 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
 
     try {
       if (force) {
-        debugPrint('🔌 Restarting MCP Client...');
         _mcpClient = null;
         _mcpProcess?.kill();
         _mcpProcess = null;
       }
-      debugPrint('🔌 Initializing MCP Client connection...');
 
       // Path to python server script
       String serverPath = 'MCP_tools/mcp_server.py';
@@ -2770,12 +2721,10 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       );
       if (await venvPython.exists()) {
         pythonCommand = venvPython.path;
-        debugPrint('✅ Using virtual environment python: $pythonCommand');
       }
 
       // Launch Python process
       _mcpProcess = await Process.start(pythonCommand, [serverPath]);
-      debugPrint('✅ Python process started (PID: ${_mcpProcess!.pid})');
 
       // Connect via IOStreamTransport (mcp_dart uses this for stdio)
       final transport = IOStreamTransport(
@@ -2791,14 +2740,9 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
       // Connect to transport
       await _mcpClient!.connect(transport);
 
-      debugPrint('✅ Connected to MCP Server!');
+      // List tools to verify connection
+      await _mcpClient!.listTools();
 
-      // List tools to verify
-      final toolsResult = await _mcpClient!.listTools();
-      final toolsList = toolsResult.tools;
-      debugPrint(
-        '🛠️ Discovered ${toolsList.length} MCP tools: ${toolsList.map((t) => t.name).join(", ")}',
-      );
       _isApiAvailable = true;
     } catch (e) {
       debugPrint('❌ Failed to initialize MCP client: $e');
@@ -2815,12 +2759,9 @@ Review and edit the tasks below, then click **Done** to add them to your calenda
     _mcpProcess?.kill();
     _mcpClient = null;
     _isApiAvailable = false;
-    debugPrint('🔌 MCP Client disposed');
   }
 
   Future<List<Map<String, dynamic>>?> _getTasks(String userText) async {
-    debugPrint('Starting MCP task API call...');
-
     // Ensure client is initialized
     if (_mcpClient == null) {
       await _initMcpClient();
