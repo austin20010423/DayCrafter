@@ -2,6 +2,35 @@
 
 An AI-powered calendar and project management application built with Flutter. DayCrafter combines conversational AI with structured task scheduling, Gmail integration, and multi-project organization into a single desktop experience.
 
+<p align="center">
+  <img src="img/Main_Page.png" alt="DayCrafter Main Page" width="800"/>
+</p>
+
+---
+
+## What's Special
+
+> **"Just tell the AI what you need — it handles the rest."**
+Most calendar apps force you to click through forms, pick dates, and manually organize. DayCrafter flips that model: **you chat, it plans**.
+
+### 🗣️ Conversational Task Creation
+Say *"Add a meeting with Professor Chen tomorrow at 2pm"* and DayCrafter creates a structured calendar event instantly — no forms, no clicking through date pickers. The AI understands natural language and maps it directly onto your schedule.
+
+### 🤖 Multi-Agent AI Planning (MCP + CrewAI)
+Describe a complex goal like *"Plan a 3-day hackathon"* and DayCrafter dispatches a team of AI agents (via the [Model Context Protocol](https://modelcontextprotocol.io/) and CrewAI) that collaborate to produce a full task breakdown with priorities, deadlines, and time estimates — all in one conversation turn.
+
+### 🔍 Semantic Memory & Vector Search
+Every message and task is embedded as a vector (via OpenAI embeddings + ObjectBox HNSW). DayCrafter doesn't just keyword-match — it **understands meaning**. Search "that meeting about the budget" and it finds the right conversation even if "budget" never appeared in the original text.
+
+### 🌐 Global Agent — Cross-Project Intelligence
+A dedicated Global Agent sits above all your projects. It reads memories and upcoming events across every project, so you can ask *"What do I have this week?"* or *"Create a new project for my thesis"* without switching context.
+
+### 📧 Gmail Integration via Natural Language
+Ask *"Check my inbox"* or *"Find emails from Professor Wang"* and the AI reads your Gmail, summarizes the results, and presents them in chat. Switch between multiple Google accounts with a single command.
+
+### 🎙️ Voice Input
+Record a voice message or upload an audio file — DayCrafter transcribes it via OpenAI Whisper and processes it as a regular chat message, enabling hands-free task management.
+
 ---
 
 ## Features
@@ -14,19 +43,12 @@ An AI-powered calendar and project management application built with Flutter. Da
 - Context-aware short-term memory that retains conversation history per project
 - Semantic search across messages and tasks using vector embeddings (ObjectBox HNSW)
 
-### Task and Schedule Planning
+### Task and Schedule Planning in Project Agent
 
 - **Direct task creation**: Tell the AI to "add a meeting tomorrow at 2pm" and it creates the calendar event automatically
 - **AI-powered planning**: Describe a complex project (e.g. "plan a 3-day conference") and the CrewAI-based MCP backend generates a structured task breakdown with priorities, deadlines, and time estimates
 - **Priority levels**: High, Medium, and Low priority with color-coded indicators
 - **Task detail editing**: Modify title, description, dates, and priority from a detail dialog
-
-### Gmail Integration
-
-- **Check email**: Ask the AI to check your inbox, search for specific emails, or filter by sender
-- **Email summary**: The AI reads your emails and provides a natural language summary
-- **Account switching**: Switch between Gmail accounts on the fly via conversational command
-- **OAuth 2.0 authentication**: Secure Google sign-in with token refresh; no passwords stored
 
 ### Calendar Views
 
@@ -38,6 +60,7 @@ An AI-powered calendar and project management application built with Flutter. Da
 ### Project Management
 
 - Create and manage multiple independent projects
+- Edit project names and colors after creation
 - Each project has its own chat history, tasks, and calendar
 - Color-coded project labels with customizable colors
 - Emoji-based project icons via built-in emoji picker
@@ -174,5 +197,83 @@ flutter run -d ios
 flutter run -d android
 ```
 
-The MCP backend server starts automatically when the Flutter app launches -- no separate terminal needed.
+The MCP backend server starts automatically when the Flutter app launches — no separate terminal needed.
 
+---
+
+## Building for Release
+
+### macOS
+
+```bash
+flutter build macos --release
+```
+
+The built app will be at `build/macos/Build/Products/Release/DayCrafter.app`.
+
+### Distributing to Another Mac
+
+1. **Zip the app**:
+   ```bash
+   cd build/macos/Build/Products/Release
+   zip -r ~/Desktop/DayCrafter.zip DayCrafter.app
+   ```
+
+2. **Send** the zip via AirDrop, USB drive, cloud storage, etc.
+
+3. **On the receiving Mac**: Unzip and right-click → **Open** to bypass Gatekeeper (the app is not notarized).
+
+> **Note**: For public distribution, you will need an [Apple Developer account](https://developer.apple.com) ($99/year) to code-sign and notarize the app.
+
+---
+
+## Project Structure
+
+```
+DayCrafter/
+├── lib/
+│   ├── main.dart              # App entry point and root widget
+│   ├── models.dart            # Data models (Task, Message, Project)
+│   ├── provider.dart          # State management (ChangeNotifier)
+│   ├── styles.dart            # Theme and color definitions
+│   ├── config/                # App configuration
+│   ├── database/              # ObjectBox database setup
+│   ├── l10n/                  # Localization (en, zh-TW)
+│   ├── services/              # Business logic services
+│   │   ├── audio_service.dart
+│   │   ├── embedding_service.dart
+│   │   ├── global_agent_tools.dart
+│   │   ├── local_auth_service.dart
+│   │   ├── short_term_memory.dart
+│   │   └── task_scheduler.dart
+│   └── widgets/               # UI components
+│       ├── auth/              # Login, registration screens
+│       ├── calendar/          # Day, Week, Month views
+│       ├── chat_view.dart     # AI chat interface
+│       ├── sidebar.dart       # Project navigation sidebar
+│       ├── settings_view.dart # Settings panel
+│       └── ...
+├── MCP_tools/                 # Python MCP backend
+├── assets/                    # Images and static assets
+└── pubspec.yaml               # Flutter dependencies
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Flutter (Dart) |
+| State Management | Provider (ChangeNotifier) |
+| Local Database | ObjectBox (NoSQL + Vector Search) |
+| AI Backend | OpenAI GPT API |
+| Task Planning | CrewAI via MCP (Model Context Protocol) |
+| Email | Gmail API (OAuth 2.0) |
+| Localization | Flutter l10n (ARB files) |
+
+---
+
+## License
+
+This project is private and not published to pub.dev.

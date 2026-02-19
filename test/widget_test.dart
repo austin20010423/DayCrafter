@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:calendar_frontend/main.dart';
+import 'package:day_crafter/main.dart';
 
 void main() {
   testWidgets('DayCrafter smoke test', (WidgetTester tester) async {
