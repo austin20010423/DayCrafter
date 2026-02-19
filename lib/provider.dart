@@ -88,7 +88,7 @@ class DayCrafterProvider with ChangeNotifier {
   late ShortTermMemory _shortTermMemory;
 
   // A small palette of colors (hex strings) for projects
-  final List<String> _palette = [
+  static const List<String> colorPalette = [
     '#FF6B6B', // Red
     '#FFA94D', // Orange
     '#FFD43B', // Yellow
@@ -97,6 +97,7 @@ class DayCrafterProvider with ChangeNotifier {
     '#C77DFF', // Purple
     '#FF6FB5', // Pink
   ];
+  final List<String> _palette = colorPalette;
 
   // Theme and locale getters
   AppThemeMode get themeMode => _themeMode;
@@ -457,6 +458,23 @@ class DayCrafterProvider with ChangeNotifier {
     await _saveProjects();
     notifyListeners();
     return newProject.id;
+  }
+
+  /// Update name and/or color of an existing project
+  Future<void> updateProjectDetails(
+    String projectId, {
+    String? name,
+    String? colorHex,
+  }) async {
+    final index = _projects.indexWhere((p) => p.id == projectId);
+    if (index == -1) return;
+
+    _projects[index] = _projects[index].copyWith(
+      name: name,
+      colorHex: colorHex,
+    );
+    await _saveProjects();
+    notifyListeners();
   }
 
   void setActiveProject(String? id) {

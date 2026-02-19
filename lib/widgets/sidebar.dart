@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:provider/provider.dart';
 import '../provider.dart';
@@ -79,6 +80,194 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
             child: Text(l10n.delete),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditProjectDialog(
+    BuildContext context,
+    DayCrafterProvider provider,
+    String projectId,
+    String currentName,
+    String? currentColorHex,
+  ) {
+    final nameController = TextEditingController(text: currentName);
+    Color selectedColor = _parseHexColor(currentColorHex);
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final l10n = AppLocalizations.of(context)!;
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: AppStyles.bRadiusLarge),
+            backgroundColor: AppStyles.mSurface,
+            child: Container(
+              padding: const EdgeInsets.all(32),
+              constraints: BoxConstraints(
+                maxWidth: 500,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Edit Project',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: AppStyles.mTextPrimary,
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          icon: Icon(
+                            Icons.close,
+                            color: AppStyles.mTextSecondary,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Project Name
+                    Text(
+                      l10n.projectName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: nameController,
+                      autofocus: true,
+                      style: TextStyle(color: AppStyles.mTextPrimary),
+                      decoration: InputDecoration(
+                        hintText: l10n.projectNameHint,
+                        hintStyle: TextStyle(
+                          color: AppStyles.mTextSecondary.withValues(
+                            alpha: 0.5,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: AppStyles.mBackground.withValues(alpha: 0.4),
+                        border: OutlineInputBorder(
+                          borderRadius: AppStyles.bRadiusSmall,
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Color Selection
+                    Text(
+                      l10n.color,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: AppStyles.mTextSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Center(
+                      child: SizedBox(
+                        width: 350,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: ColorPicker(
+                            pickerColor: selectedColor,
+                            onColorChanged: (color) {
+                              setDialogState(() {
+                                selectedColor = color;
+                              });
+                            },
+                            labelTypes: const [],
+                            enableAlpha: false,
+                            displayThumbColor: true,
+                            pickerAreaHeightPercent: 0.7,
+                            paletteType: PaletteType.hueWheel,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppStyles.bRadiusSmall,
+                              ),
+                            ),
+                            child: Text(
+                              l10n.cancel,
+                              style: TextStyle(
+                                color: AppStyles.mTextSecondary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final newName = nameController.text.trim();
+                              if (newName.isNotEmpty) {
+                                final colorInt = selectedColor.toARGB32();
+                                final colorHex =
+                                    '#${colorInt.toRadixString(16).substring(2).toUpperCase()}';
+                                provider.updateProjectDetails(
+                                  projectId,
+                                  name: newName,
+                                  colorHex: colorHex,
+                                );
+                              }
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: selectedColor,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppStyles.bRadiusSmall,
+                              ),
+                              elevation: 0,
+                            ),
+                            child: const Text(
+                              'Save',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -301,6 +490,13 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                           ),
                                           onTap: () => provider
                                               .setActiveProject(project.id),
+                                          onEdit: () => _showEditProjectDialog(
+                                            context,
+                                            provider,
+                                            project.id,
+                                            project.name,
+                                            project.colorHex,
+                                          ),
                                           onDelete: () => _showDeleteDialog(
                                             context,
                                             provider,
@@ -352,6 +548,13 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                                     markColor: _parseHexColor(project.colorHex),
                                     onTap: () =>
                                         provider.setActiveProject(project.id),
+                                    onEdit: () => _showEditProjectDialog(
+                                      context,
+                                      provider,
+                                      project.id,
+                                      project.name,
+                                      project.colorHex,
+                                    ),
                                     onDelete: () => _showDeleteDialog(
                                       context,
                                       provider,
@@ -564,12 +767,14 @@ class _ProjectItem extends StatefulWidget {
   final bool isCollapsed;
   final Color? markColor;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _ProjectItem({
     required this.label,
     required this.isActive,
     required this.onTap,
+    required this.onEdit,
     required this.onDelete,
     this.icon,
     this.isCollapsed = false,
@@ -726,13 +931,30 @@ class _ProjectItemState extends State<_ProjectItem> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // Delete button - visible on hover or when active
-              if (_isHovered || widget.isActive)
+              // Edit & Delete buttons - visible on hover or when active
+              if (_isHovered || widget.isActive) ...[
+                IconButton(
+                  onPressed: widget.onEdit,
+                  icon: Icon(
+                    LucideIcons.pencil,
+                    size: 14,
+                    color: _isHovered
+                        ? (widget.markColor ?? Colors.white70)
+                        : Colors.white54,
+                  ),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
+                  splashRadius: 16,
+                  tooltip: 'Edit project',
+                ),
                 IconButton(
                   onPressed: widget.onDelete,
                   icon: Icon(
                     LucideIcons.trash2,
-                    size: 16,
+                    size: 14,
                     color: _isHovered ? Colors.red.shade300 : Colors.white54,
                   ),
                   padding: EdgeInsets.zero,
@@ -743,6 +965,7 @@ class _ProjectItemState extends State<_ProjectItem> {
                   splashRadius: 16,
                   tooltip: 'Delete project',
                 ),
+              ],
             ],
           ),
         ),
